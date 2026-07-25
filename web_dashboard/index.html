@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Krishi Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Krishi Admin</h1>
+    <div id="who"></div>
+  </header>
+
+  <main>
+    <section id="auth-panel">
+      <h2>Sign in</h2>
+      <form id="signin-form">
+        <label>Email <input type="email" name="email" required /></label>
+        <label>Password <input type="password" name="password" required minlength="8" /></label>
+        <button type="submit">Sign in</button>
+      </form>
+      <p class="hint">
+        This dashboard is for staff accounts. Farmers should use the mobile app.
+      </p>
+    </section>
+
+    <section id="dashboard" hidden>
+      <h2>Your farm profiles (this signed-in user only)</h2>
+      <p class="hint">
+        Because RLS is enabled, even the admin dashboard only sees what the
+        signed-in user is allowed to see. To view other users' data, you'll
+        need a service-role backend — deliberately out of scope for the
+        static dashboard.
+      </p>
+      <table id="farms-table">
+        <thead><tr><th>Name</th><th>Crop</th><th>Size (ha)</th><th>Planted</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button id="signout-btn">Sign out</button>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
