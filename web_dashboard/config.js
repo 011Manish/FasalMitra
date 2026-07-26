@@ -3,6 +3,6 @@
 // (Netlify env vars -> injected into a config.js at deploy time works well).
 
 window.SUPABASE_CONFIG = {
-  url: 'https://YOUR-PROJECT-REF.supabase.co',
-  anonKey: 'your-anon-public-key',
+  url: 'https://ikdsghbiwhpuxmsvlubk.supabase.co',
+  anonKey: 'sb_publishable_kvGum61EVcZyPIBQQAMXgA_FTWy1uqt',
 };
