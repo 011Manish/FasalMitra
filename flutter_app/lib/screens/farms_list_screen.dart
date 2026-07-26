@@ -118,7 +118,7 @@ class _FarmThumbnail extends StatefulWidget {
 }
 
 class _FarmThumbnailState extends State<_FarmThumbnail> {
-  late Future<FarmPhoto?> _latest = _load();
+  late final Future<FarmPhoto?> _latest = _load();
 
   Future<FarmPhoto?> _load() async {
     final photos = await widget.photos.listForFarm(widget.farmId);

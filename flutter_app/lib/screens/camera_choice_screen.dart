@@ -9,6 +9,10 @@ import '../services/farm_service.dart';
 import '../services/photo_service.dart';
 import 'farm_edit_screen.dart';
 import 'farm_photos_screen.dart';
+import '../models/plant_scan.dart';
+import '../services/plant_scan_service.dart';
+import 'plant_scan_history_screen.dart';
+import 'plant_scan_result_screen.dart';
 
 class CameraChoiceScreen extends StatefulWidget {
   const CameraChoiceScreen({super.key});
@@ -20,6 +24,7 @@ class CameraChoiceScreen extends StatefulWidget {
 class _CameraChoiceScreenState extends State<CameraChoiceScreen> {
   late final _farms = FarmService(Supabase.instance.client);
   late final _photos = PhotoService(Supabase.instance.client);
+  late final _scans = PlantScanService(Supabase.instance.client);
   final _picker = ImagePicker();
 
   bool _busy = false;
@@ -76,6 +81,56 @@ class _CameraChoiceScreenState extends State<CameraChoiceScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _checkPlantHealth() async {
+    final farms = await _farms.listMine();
+    if (farms.isEmpty) {
+      _snack('Add a farm first so we know which field this photo is from.');
+      return;
+    }
+
+    final source = await _pickSource();
+    if (source == null) return;
+
+    setState(() => _busy = true);
+    try {
+      final picked = await _picker.pickImage(source: source, imageQuality: 85);
+      if (picked == null) return;
+      final file = File(picked.path);
+
+      final farm = farms.length == 1 ? farms.first : await _pickFarm(farms);
+      if (farm == null) return;
+
+      final path = await _scans.uploadScanPhoto(farmId: farm.id, file: file);
+      if (!mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              PlantScanResultScreen.newScan(farmId: farm.id, storagePath: path),
+        ),
+      );
+    } catch (e) {
+      _snack('Upload failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _viewPlantHealthHistory() async {
+    final farms = await _farms.listMine();
+    if (farms.isEmpty) {
+      _snack('Add a farm first to see scan history.');
+      return;
+    }
+    final farm = farms.length == 1 ? farms.first : await _pickFarm(farms);
+    if (farm == null) return;
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+          builder: (_) => PlantScanHistoryScreen(farm: farm, service: _scans)),
+    );
   }
 
   Future<ImageSource?> _pickSource() {
@@ -173,11 +228,22 @@ class _CameraChoiceScreenState extends State<CameraChoiceScreen> {
             const SizedBox(height: 12),
             Card(
               child: ListTile(
-                enabled: false,
                 leading: const Icon(Icons.local_florist_outlined, size: 32),
                 title: const Text('Check plant health'),
-                subtitle: const Text('Coming soon'),
-                onTap: () {},
+                subtitle:
+                    const Text('Snap a photo for an instant AI health report.'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.history),
+                      tooltip: 'Past scans',
+                      onPressed: _busy ? null : _viewPlantHealthHistory,
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+                onTap: _busy ? null : _checkPlantHealth,
               ),
             ),
           ],

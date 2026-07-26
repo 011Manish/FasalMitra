@@ -309,8 +309,9 @@ class _FarmEditScreenState extends State<FarmEditScreen> {
                     const InputDecoration(labelText: 'Land size (hectares)'),
                 validator: (v) {
                   final parsed = double.tryParse(v?.trim() ?? '');
-                  if (parsed == null || parsed <= 0)
+                  if (parsed == null || parsed <= 0) {
                     return 'Enter a positive number';
+                  }
                   if (parsed > 10000) return 'Too large';
                   return null;
                 },

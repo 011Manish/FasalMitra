@@ -21,7 +21,7 @@ class FarmDetailScreen extends StatefulWidget {
 
 class _FarmDetailScreenState extends State<FarmDetailScreen> {
   late final _photos = PhotoService(Supabase.instance.client);
-  late Future<FarmPhoto?> _latestPhoto = _loadLatestPhoto();
+  late final Future<FarmPhoto?> _latestPhoto = _loadLatestPhoto();
 
   Future<FarmPhoto?> _loadLatestPhoto() async {
     final photos = await _photos.listForFarm(widget.farm.id);
