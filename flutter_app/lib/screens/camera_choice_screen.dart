@@ -9,7 +9,6 @@ import '../services/farm_service.dart';
 import '../services/photo_service.dart';
 import 'farm_edit_screen.dart';
 import 'farm_photos_screen.dart';
-import '../models/plant_scan.dart';
 import '../services/plant_scan_service.dart';
 import 'plant_scan_history_screen.dart';
 import 'plant_scan_result_screen.dart';

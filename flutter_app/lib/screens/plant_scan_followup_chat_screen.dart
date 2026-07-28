@@ -78,7 +78,7 @@ class _PlantScanFollowUpChatScreenState
                     decoration: BoxDecoration(
                       color: m.fromUser
                           ? Theme.of(context).colorScheme.primaryContainer
-                          : Theme.of(context).colorScheme.surfaceVariant,
+                          : Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(m.text),

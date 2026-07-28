@@ -8,10 +8,9 @@ import 'plant_scan_followup_chat_screen.dart';
 class PlantScanResultScreen extends StatefulWidget {
   const PlantScanResultScreen.newScan({
     super.key,
-    required String farmId,
+    required String this.farmId,
     required String storagePath,
-  })  : farmId = farmId,
-        storagePath = storagePath,
+  })  : storagePath = storagePath,
         existingScan = null;
 
   const PlantScanResultScreen.existing({super.key, required PlantScan scan})
@@ -182,7 +181,7 @@ class _ScoreHeader extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: _scoreColor().withOpacity(0.15),
+              backgroundColor: _scoreColor().withValues(alpha: 0.15),
               child: Text('$score',
                   style: TextStyle(
                       color: _scoreColor(), fontWeight: FontWeight.bold)),
@@ -263,7 +262,7 @@ class _Disclaimer extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.amber.withOpacity(0.15),
+        color: Colors.amber.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.amber),
       ),

@@ -5,6 +5,7 @@ import '../services/farm_service.dart';
 import '../services/marketplace_service.dart';
 import 'camera_choice_screen.dart';
 import 'farms_list_screen.dart';
+import 'home_grid_screen.dart';
 import 'marketplace_screen.dart';
 import 'reminders_screen.dart';
 
@@ -55,14 +56,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final screens = [
+      const HomeGridScreen(),
       FarmsListScreen(service: _farms),
       RemindersScreen(service: _farms),
       MarketplaceScreen(service: _marketplace),
     ];
-    const titles = ['My farms', 'Reminders', 'Marketplace'];
+    const titles = ['Home', 'My farms', 'Reminders', 'Marketplace'];
 
     return Scaffold(
-      appBar: _tab == 2
+      appBar: _tab == 3
           ? null // MarketplaceScreen has its own AppBar (with the orders shortcut)
           : AppBar(
               title: Text(titles[_tab]),
@@ -102,10 +104,18 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: _NavTab(
-                  icon: Icons.grass,
-                  label: 'Farms',
+                  icon: Icons.home_outlined,
+                  label: 'Home',
                   selected: _tab == 0,
                   onTap: () => setState(() => _tab = 0),
+                ),
+              ),
+              Expanded(
+                child: _NavTab(
+                  icon: Icons.grass,
+                  label: 'Farms',
+                  selected: _tab == 1,
+                  onTap: () => setState(() => _tab = 1),
                 ),
               ),
               // Gap where the docked camera FAB sits.
@@ -114,16 +124,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _NavTab(
                   icon: Icons.notifications_active_outlined,
                   label: 'Today',
-                  selected: _tab == 1,
-                  onTap: () => setState(() => _tab = 1),
+                  selected: _tab == 2,
+                  onTap: () => setState(() => _tab = 2),
                 ),
               ),
               Expanded(
                 child: _NavTab(
                   icon: Icons.storefront_outlined,
                   label: 'Market',
-                  selected: _tab == 2,
-                  onTap: () => setState(() => _tab = 2),
+                  selected: _tab == 3,
+                  onTap: () => setState(() => _tab = 3),
                 ),
               ),
             ],
