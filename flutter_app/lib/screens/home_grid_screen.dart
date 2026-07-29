@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'experts_list_screen.dart';
 import 'finance_screen.dart';
 import 'learning_academy_screen.dart';
 
@@ -26,6 +27,13 @@ class HomeGridScreen extends StatelessWidget {
           label: 'Learning Academy',
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const LearningAcademyScreen()),
+          ),
+        ),
+        _HomeTile(
+          icon: Icons.support_agent_outlined,
+          label: 'Experts',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ExpertsListScreen()),
           ),
         ),
       ],
@@ -57,7 +65,14 @@ class _HomeTile extends StatelessWidget {
           children: [
             Icon(icon, size: 32, color: scheme.primary),
             const SizedBox(height: 8),
-            Text(label, style: TextStyle(color: scheme.onSurface)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurface),
+              ),
+            ),
           ],
         ),
       ),

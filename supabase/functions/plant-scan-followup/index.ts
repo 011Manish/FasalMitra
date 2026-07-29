@@ -7,7 +7,7 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 
-const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.0-flash';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,8 +47,6 @@ serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } }
   );
 
-  // RLS scopes this to the caller's own scans — a farmer can't ask about
-  // someone else's scan by guessing an id.
   const { data: scan, error: scanErr } = await sb
     .from('plant_health_scans')
     .select('analysis')
@@ -57,8 +55,8 @@ serve(async (req) => {
   if (scanErr) return json({ error: 'lookup_failed', detail: scanErr.message }, 500);
   if (!scan) return json({ error: 'scan_not_found' }, 404);
 
-  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!anthropicKey) return json({ error: 'server_misconfigured' }, 500);
+  const geminiKey = Deno.env.get('GEMINI_API_KEY');
+  if (!geminiKey) return json({ error: 'server_misconfigured' }, 500);
 
   const prompt = `A farmer previously got this plant health report:\n\n${JSON.stringify(scan.analysis)}\n\n` +
     `They're now asking a follow-up question about this same scan: "${question}"\n\n` +
@@ -68,31 +66,28 @@ serve(async (req) => {
 
   let aiRes: Response;
   try {
-    aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 600,
-        temperature: 0.3,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
+    aiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 600 },
+        }),
+      }
+    );
   } catch (e) {
-    return json({ error: 'anthropic_unreachable', detail: String(e) }, 502);
+    return json({ error: 'gemini_unreachable', detail: String(e) }, 502);
   }
 
   if (!aiRes.ok) {
     const detail = await aiRes.text();
-    return json({ error: 'anthropic_error', detail }, 502);
+    return json({ error: 'gemini_error', detail }, 502);
   }
 
   const aiData = await aiRes.json();
-  const answer: string = aiData?.content?.find((c: { type: string }) => c.type === 'text')?.text ?? '';
+  const answer: string = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
   return json({ answer });
 });

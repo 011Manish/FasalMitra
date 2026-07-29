@@ -1,4 +1,4 @@
-// One-shot plant health analysis: farmer uploads a photo, this calls Claude
+// One-shot plant health analysis: farmer uploads a photo, this calls Gemini
 // vision once and returns a full report. No follow-up conversation here —
 // see plant-scan-followup for that.
 //
@@ -12,7 +12,7 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { encodeBase64 } from 'https://deno.land/std@0.208.0/encoding/base64.ts';
 
 const BUCKET = 'farm-media';
-const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.0-flash';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -122,13 +122,9 @@ serve(async (req) => {
 
   const farm = await loadFarm(sb, farmId);
   if (!farm || farm.user_id !== user.id) {
-    // Either the farm doesn't exist, isn't the caller's, or RLS is hiding
-    // it — don't leak which.
     return json({ error: 'farm_not_found' }, 404);
   }
 
-  // The path is client-supplied; make sure it actually points at this
-  // caller's own scan folder before we go fetch and pay to analyze it.
   const expectedPrefix = `${user.id}/${farmId}/plant-scans/`;
   if (!storagePath.startsWith(expectedPrefix)) {
     return json({ error: 'storage_path_mismatch' }, 403);
@@ -141,8 +137,8 @@ serve(async (req) => {
   const base64Image = encodeBase64(bytes);
   const mediaType = mediaTypeFor(storagePath);
 
-  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!anthropicKey) return json({ error: 'server_misconfigured' }, 500);
+  const geminiKey = Deno.env.get('GEMINI_API_KEY');
+  if (!geminiKey) return json({ error: 'server_misconfigured' }, 500);
 
   const contextLine = farm.crop_type
     ? `The farmer says this field is growing: ${farm.crop_type}.`
@@ -150,37 +146,33 @@ serve(async (req) => {
 
   let aiRes: Response;
   try {
-    aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 1400,
-        temperature: 0.2,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image } },
-            { type: 'text', text: `${contextLine}\n\n${ANALYSIS_SCHEMA_PROMPT}` },
-          ],
-        }],
-      }),
-    });
+    aiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: `${contextLine}\n\n${ANALYSIS_SCHEMA_PROMPT}` },
+              { inline_data: { mime_type: mediaType, data: base64Image } },
+            ],
+          }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 1400 },
+        }),
+      }
+    );
   } catch (e) {
-    return json({ error: 'anthropic_unreachable', detail: String(e) }, 502);
+    return json({ error: 'gemini_unreachable', detail: String(e) }, 502);
   }
 
   if (!aiRes.ok) {
     const detail = await aiRes.text();
-    return json({ error: 'anthropic_error', detail }, 502);
+    return json({ error: 'gemini_error', detail }, 502);
   }
 
   const aiData = await aiRes.json();
-  const rawText: string = aiData?.content?.find((c: { type: string }) => c.type === 'text')?.text ?? '';
+  const rawText: string = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   const cleaned = rawText.replace(/^```json\s*|```$/g, '').trim();
 
   let analysis: Record<string, unknown>;

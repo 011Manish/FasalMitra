@@ -9,9 +9,8 @@ class PlantScanResultScreen extends StatefulWidget {
   const PlantScanResultScreen.newScan({
     super.key,
     required String this.farmId,
-    required String storagePath,
-  })  : storagePath = storagePath,
-        existingScan = null;
+    required String this.storagePath,
+  })  : existingScan = null;
 
   const PlantScanResultScreen.existing({super.key, required PlantScan scan})
       : existingScan = scan,
