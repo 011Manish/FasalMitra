@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../smart_farm_monitor/screens/smart_farm_home.dart';
 import 'experts_list_screen.dart';
 import 'finance_screen.dart';
 import 'learning_academy_screen.dart';
@@ -11,7 +12,7 @@ class HomeGridScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return GridView.count(
       padding: const EdgeInsets.all(16),
-      crossAxisCount: 3,
+      crossAxisCount: 2,
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
       children: [
@@ -19,21 +20,38 @@ class HomeGridScreen extends StatelessWidget {
           icon: Icons.account_balance_outlined,
           label: 'Finance',
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const FinanceScreen()),
+            MaterialPageRoute(
+              builder: (_) => const FinanceScreen(),
+            ),
           ),
         ),
         _HomeTile(
           icon: Icons.school_outlined,
           label: 'Learning Academy',
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const LearningAcademyScreen()),
+            MaterialPageRoute(
+              builder: (_) => const LearningAcademyScreen(),
+            ),
           ),
         ),
         _HomeTile(
           icon: Icons.support_agent_outlined,
           label: 'Experts',
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ExpertsListScreen()),
+            MaterialPageRoute(
+              builder: (_) => const ExpertsListScreen(),
+            ),
+          ),
+        ),
+
+        // Smart Farm Monitor
+        _HomeTile(
+          icon: Icons.sensors_outlined,
+          label: 'Smart Farm Monitor',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => SmartFarmHome(),
+            ),
           ),
         ),
       ],
@@ -42,8 +60,11 @@ class HomeGridScreen extends StatelessWidget {
 }
 
 class _HomeTile extends StatelessWidget {
-  const _HomeTile(
-      {required this.icon, required this.label, required this.onTap});
+  const _HomeTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -52,28 +73,40 @@ class _HomeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Ink(
         decoration: BoxDecoration(
           color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: scheme.outlineVariant,
+          ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 32, color: scheme.primary),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 42,
+                color: scheme.primary,
+              ),
+              const SizedBox(height: 12),
+              Text(
                 label,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: scheme.onSurface),
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

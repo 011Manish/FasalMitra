@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:krishi_app/models/farm_profile.dart';
+import 'package:agrismart_ai/models/farm_profile.dart';
 
 void main() {
   group('FarmProfile.fromMap', () {
