@@ -5,6 +5,7 @@ import 'experts_list_screen.dart';
 import 'finance_screen.dart';
 import 'learning_academy_screen.dart';
 import 'nearby_agriculture_screen.dart';
+import 'equipment_rental_screen.dart';
 
 class HomeGridScreen extends StatelessWidget {
   const HomeGridScreen({super.key});
@@ -62,6 +63,15 @@ class HomeGridScreen extends StatelessWidget {
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const NearbyAgricultureScreen(),
+            ),
+          ),
+        ),
+        _HomeTile(
+          icon: Icons.agriculture_outlined,
+          label: 'Equipment Rental',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const EquipmentRentalScreen(),
             ),
           ),
         ),
