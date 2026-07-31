@@ -101,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              Text('Krishi', style: Theme.of(context).textTheme.displaySmall),
+              Text('AgriSmart AI', style: Theme.of(context).textTheme.displaySmall),
               const SizedBox(height: 8),
               const Text('Sign in with your phone number to continue.'),
               const SizedBox(height: 24),
