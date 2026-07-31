@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../smart_farm_monitor/screens/smart_farm_home.dart';
+import 'equipment_rental_screen.dart';
 import 'experts_list_screen.dart';
 import 'finance_screen.dart';
 import 'learning_academy_screen.dart';
 import 'nearby_agriculture_screen.dart';
-import 'equipment_rental_screen.dart';
+import 'price_prediction_screen.dart';
 
 class HomeGridScreen extends StatelessWidget {
   const HomeGridScreen({super.key});
@@ -66,12 +67,23 @@ class HomeGridScreen extends StatelessWidget {
             ),
           ),
         ),
+
         _HomeTile(
           icon: Icons.agriculture_outlined,
           label: 'Equipment Rental',
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const EquipmentRentalScreen(),
+            ),
+          ),
+        ),
+
+        _HomeTile(
+          icon: Icons.trending_up_outlined,
+          label: 'Price Prediction',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const PricePredictionScreen(),
             ),
           ),
         ),
