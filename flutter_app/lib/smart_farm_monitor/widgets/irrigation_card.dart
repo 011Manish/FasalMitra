@@ -18,28 +18,32 @@ class IrrigationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          children: [
-            const Icon(
-              Icons.water_drop,
-              size: 45,
-              color: Colors.blue,
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Automatic Irrigation',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Switch(
-              value: isOn,
-              onChanged: (_) => onPressed(),
-            ),
-            Text(
-              isOn ? 'ON' : 'OFF',
-            )
-          ],
+        padding: const EdgeInsets.all(12),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.water_drop,
+                size: 45,
+                color: Colors.blue,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Automatic Irrigation',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Switch(
+                value: isOn,
+                onChanged: (_) => onPressed(),
+              ),
+              Text(
+                isOn ? 'ON' : 'OFF',
+              )
+            ],
+          ),
         ),
       ),
     );

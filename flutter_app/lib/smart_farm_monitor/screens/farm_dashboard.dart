@@ -113,7 +113,7 @@ class _FarmDashboardState extends State<FarmDashboard> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
-                childAspectRatio: .95,
+                childAspectRatio: .78,
                 children: [
                   SensorCard(
                     title: 'Soil Moisture',
