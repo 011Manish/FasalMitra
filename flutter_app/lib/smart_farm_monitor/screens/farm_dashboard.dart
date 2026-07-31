@@ -33,20 +33,20 @@ class _FarmDashboardState extends State<FarmDashboard> {
           mainAxisSpacing: 12,
           children: [
             const SensorCard(
-              title: "Soil Moisture",
-              value: "45%",
+              title: 'Soil Moisture',
+              value: '45%',
               icon: Icons.water_drop,
               color: Colors.blue,
             ),
             const SensorCard(
-              title: "Temperature",
-              value: "28°C",
+              title: 'Temperature',
+              value: '28°C',
               icon: Icons.thermostat,
               color: Colors.orange,
             ),
             const SensorCard(
-              title: "Humidity",
-              value: "70%",
+              title: 'Humidity',
+              value: '70%',
               icon: Icons.cloud,
               color: Colors.cyan,
             ),
@@ -59,7 +59,7 @@ class _FarmDashboardState extends State<FarmDashboard> {
               },
             ),
             const GreenhouseCard(
-              status: "Healthy",
+              status: 'Healthy',
             ),
           ],
         ),

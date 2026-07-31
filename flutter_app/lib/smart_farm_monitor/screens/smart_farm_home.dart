@@ -7,6 +7,6 @@ class SmartFarmHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FarmsScreen();
+    return const FarmsScreen();
   }
 }

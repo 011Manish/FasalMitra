@@ -5,21 +5,21 @@ class FarmService {
     return [
       Farm(
         id: 1,
-        name: "Tomato Farm",
-        location: "Kathmandu",
-        status: "Online",
+        name: 'Tomato Farm',
+        location: 'Kathmandu',
+        status: 'Online',
       ),
       Farm(
         id: 2,
-        name: "Greenhouse A",
-        location: "Pokhara",
-        status: "Online",
+        name: 'Greenhouse A',
+        location: 'Pokhara',
+        status: 'Online',
       ),
       Farm(
         id: 3,
-        name: "Corn Field",
-        location: "Chitwan",
-        status: "Offline",
+        name: 'Corn Field',
+        location: 'Chitwan',
+        status: 'Offline',
       ),
     ];
   }

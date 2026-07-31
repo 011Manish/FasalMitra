@@ -29,7 +29,7 @@ class _FarmsScreenState extends State<FarmsScreen> {
     try {
       farms = await _farmService.listMine();
     } catch (e) {
-      debugPrint("Error loading farms: $e");
+      debugPrint('Error loading farms: $e');
     }
 
     if (mounted) {
@@ -51,7 +51,7 @@ class _FarmsScreenState extends State<FarmsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Farms"),
+        title: const Text('My Farms'),
         centerTitle: true,
       ),
       body: RefreshIndicator(
@@ -66,7 +66,7 @@ class _FarmsScreenState extends State<FarmsScreen> {
                       SizedBox(height: 250),
                       Center(
                         child: Text(
-                          "No farms added yet.\nAdd a farm from Farm Management.",
+                          'No farms added yet.\nAdd a farm from Farm Management.',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 16),
                         ),
@@ -81,7 +81,7 @@ class _FarmsScreenState extends State<FarmsScreen> {
                       return FarmCard(
                         farmName: farm.name,
                         location: farm.cropType,
-                        status: "Online",
+                        status: 'Online',
                         onTap: () {
                           Navigator.push(
                             context,
