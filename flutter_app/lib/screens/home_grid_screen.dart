@@ -4,6 +4,7 @@ import '../smart_farm_monitor/screens/smart_farm_home.dart';
 import 'experts_list_screen.dart';
 import 'finance_screen.dart';
 import 'learning_academy_screen.dart';
+import 'nearby_agriculture_screen.dart';
 
 class HomeGridScreen extends StatelessWidget {
   const HomeGridScreen({super.key});
@@ -51,6 +52,16 @@ class HomeGridScreen extends StatelessWidget {
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const SmartFarmHome(),
+            ),
+          ),
+        ),
+
+        _HomeTile(
+          icon: Icons.location_on_outlined,
+          label: 'Nearby Agriculture',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const NearbyAgricultureScreen(),
             ),
           ),
         ),
