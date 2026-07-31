@@ -14,37 +14,72 @@ class SensorCard extends StatelessWidget {
     required this.color,
   });
 
+  bool get isOffline =>
+      value.contains('--') ||
+      value.contains('Waiting') ||
+      value.contains('Sensor') ||
+      value.contains('No');
+
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 3,
+      shadowColor: Colors.black12,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 40,
-              color: color,
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: color.withOpacity(.15),
+              child: Icon(
+                icon,
+                color: color,
+                size: 30,
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
             Text(
               title,
               style: const TextStyle(
-                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: isOffline ? Colors.grey : Colors.black87,
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.circle,
+                  size: 10,
+                  color: isOffline ? Colors.orange : Colors.green,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isOffline ? "Waiting for sensor" : "Live",
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

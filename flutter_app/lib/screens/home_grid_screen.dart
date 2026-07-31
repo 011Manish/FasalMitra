@@ -50,7 +50,7 @@ class HomeGridScreen extends StatelessWidget {
           label: 'Smart Farm Monitor',
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => SmartFarmHome(),
+              builder: (_) => const SmartFarmHome(),
             ),
           ),
         ),

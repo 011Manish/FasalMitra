@@ -1,13 +1,27 @@
-import '../models/sensor_data.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/sensor_reading.dart';
 
 class SensorService {
-  Future<SensorData> getSensorData(int farmId) async {
-    return SensorData(
-      soilMoisture: 45,
-      temperature: 28,
-      humidity: 70,
-      irrigation: true,
-      greenhouse: true,
-    );
+  final _supabase = Supabase.instance.client;
+
+  Future<SensorReading?> getLatestReading(String deviceUid) async {
+    try {
+      final response = await _supabase
+          .from('sensor_readings')
+          .select()
+          .eq('device_uid', deviceUid)
+          .order('timestamp', ascending: false)
+          .limit(1);
+
+      if (response.isEmpty) {
+        return null;
+      }
+
+      return SensorReading.fromMap(response.first);
+    } catch (e) {
+      print('Supabase Error: $e');
+      return null;
+    }
   }
 }
