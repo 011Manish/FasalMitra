@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .env
 .dart_tool/
 .flutter-plugins-dependencies
@@ -8,3 +9,27 @@ build/
 *.iml
 .idea/
 android/local.properties
+=======
+﻿# Environment files - NEVER commit these
+.env
+*.env
+!.env.example
+
+# Flutter
+flutter_app/.dart_tool/
+flutter_app/build/
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.packages
+flutter_app/.pub-cache/
+flutter_app/.pub/
+flutter_app/android/local.properties
+**/*.iml
+**/.idea/
+
+# Supabase local CLI cache
+supabase/.temp/
+
+# OS junk
+.DS_Store
+Thumbs.db
+>>>>>>> f5eddb987be16f4515c575dc3abb97139633d92a

@@ -1,5 +1,5 @@
 name: agrismart_ai
-description: Farmer-facing mobile app for AgriSmart AI.
+description: Farmer-facing mobile app for FASALMITRA.
 publish_to: none
 version: 0.1.0+1
 
@@ -29,4 +29,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - .env
+    - assets/app.env

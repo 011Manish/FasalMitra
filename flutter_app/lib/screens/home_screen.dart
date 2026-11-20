@@ -7,7 +7,6 @@ import 'camera_choice_screen.dart';
 import 'farms_list_screen.dart';
 import 'home_grid_screen.dart';
 import 'marketplace_screen.dart';
-import 'reminders_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,8 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete account?'),
         content: const Text(
-          'This will permanently delete your account, all farm profiles, '
-          'and all schedule items. This cannot be undone.',
+          'This will permanently delete your account and all your farm '
+          'profiles. This cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -58,14 +57,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final screens = [
       const HomeGridScreen(),
       FarmsListScreen(service: _farms),
-      RemindersScreen(service: _farms),
       MarketplaceScreen(service: _marketplace),
     ];
-    const titles = ['Home', 'My farms', 'Reminders', 'Marketplace'];
+    const titles = ['Home', 'My farms'];
 
     return Scaffold(
-      appBar: _tab == 3
-          ? null // MarketplaceScreen has its own AppBar (with the orders shortcut)
+      appBar: _tab == 2
+          ? null // MarketplaceScreen has its own AppBar
           : AppBar(
               title: Text(titles[_tab]),
               actions: [
@@ -89,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'cameraButton',
         onPressed: _openCamera,
-        tooltip: 'Camera',
+        tooltip: 'Scan',
         shape: const CircleBorder(),
         child: const Icon(Icons.photo_camera),
       ),
@@ -122,18 +120,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 72),
               Expanded(
                 child: _NavTab(
-                  icon: Icons.notifications_active_outlined,
-                  label: 'Today',
-                  selected: _tab == 2,
-                  onTap: () => setState(() => _tab = 2),
-                ),
-              ),
-              Expanded(
-                child: _NavTab(
                   icon: Icons.storefront_outlined,
                   label: 'Market',
-                  selected: _tab == 3,
-                  onTap: () => setState(() => _tab = 3),
+                  selected: _tab == 2,
+                  onTap: () => setState(() => _tab = 2),
                 ),
               ),
             ],

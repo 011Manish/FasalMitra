@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../smart_farm_monitor/screens/smart_farm_home.dart';
-import 'equipment_rental_screen.dart';
-import 'experts_list_screen.dart';
-import 'finance_screen.dart';
 import 'learning_academy_screen.dart';
 import 'nearby_agriculture_screen.dart';
 import 'price_prediction_screen.dart';
@@ -20,15 +16,6 @@ class HomeGridScreen extends StatelessWidget {
       crossAxisSpacing: 12,
       children: [
         _HomeTile(
-          icon: Icons.account_balance_outlined,
-          label: 'Finance',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const FinanceScreen(),
-            ),
-          ),
-        ),
-        _HomeTile(
           icon: Icons.school_outlined,
           label: 'Learning Academy',
           onTap: () => Navigator.of(context).push(
@@ -38,27 +25,6 @@ class HomeGridScreen extends StatelessWidget {
           ),
         ),
         _HomeTile(
-          icon: Icons.support_agent_outlined,
-          label: 'Experts',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const ExpertsListScreen(),
-            ),
-          ),
-        ),
-
-        // Smart Farm Monitor
-        _HomeTile(
-          icon: Icons.sensors_outlined,
-          label: 'Smart Farm Monitor',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const SmartFarmHome(),
-            ),
-          ),
-        ),
-
-        _HomeTile(
           icon: Icons.location_on_outlined,
           label: 'Nearby Agriculture',
           onTap: () => Navigator.of(context).push(
@@ -67,17 +33,6 @@ class HomeGridScreen extends StatelessWidget {
             ),
           ),
         ),
-
-        _HomeTile(
-          icon: Icons.agriculture_outlined,
-          label: 'Equipment Rental',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const EquipmentRentalScreen(),
-            ),
-          ),
-        ),
-
         _HomeTile(
           icon: Icons.trending_up_outlined,
           label: 'Price Prediction',

@@ -1,0 +1,20 @@
+# Minimal Supabase CLI project config. The dashboard is still the source of
+# truth for provider credentials (SMS provider keys etc.); this file only
+# pins the pieces we want checked into version control.
+
+project_id = "krishi"
+
+[db]
+major_version = 15
+
+[auth]
+enable_signup = true
+
+
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+template = "Your Krishi verification code is {{ .Code }}"
+
+[auth.sms.twilio]
+enabled = false
