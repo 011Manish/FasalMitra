@@ -1,4 +1,4 @@
-# Krishi
+# FasalMitra
 
 Farmer-facing mobile app + admin web dashboard, backed by Supabase.
 
