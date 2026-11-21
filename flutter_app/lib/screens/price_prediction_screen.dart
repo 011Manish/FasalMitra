@@ -107,9 +107,24 @@ class _PricePredictionScreenState extends State<PricePredictionScreen> {
                       TrendDirection.down => Colors.red,
                       TrendDirection.stable => Colors.grey,
                     };
+                    final latest = trend.points.last;
                     return ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
+                        if (latest.isDemo)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange),
+                            ),
+                            child: const Text(
+                              'DEMO / SAMPLE DATA: these are not live market prices.',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
                         Row(
                           children: [
                             Icon(icon, color: color, size: 32),
@@ -157,7 +172,10 @@ class _PricePredictionScreenState extends State<PricePredictionScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Based on Kalimati Market historical data.',
+                          '${latest.isDemo ? 'Sample data' : 'Source'}: '
+                          '${latest.marketName ?? latest.source}. '
+                          'Last updated: ${DateFormat.yMMMd().format(latest.recordedDate)}. '
+                          'The estimate is a simple trend projection, not a guaranteed price.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],

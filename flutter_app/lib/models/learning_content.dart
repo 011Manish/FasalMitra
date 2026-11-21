@@ -5,6 +5,9 @@ class LearningContent {
   final String summary;
   final String body;
   final String? externalUrl;
+  final String category;
+  final String language;
+  final String? thumbnailUrl;
 
   LearningContent({
     required this.id,
@@ -13,6 +16,9 @@ class LearningContent {
     required this.summary,
     required this.body,
     this.externalUrl,
+    this.category = 'general',
+    this.language = 'en',
+    this.thumbnailUrl,
   });
 
   factory LearningContent.fromMap(Map<String, dynamic> row) => LearningContent(
@@ -22,7 +28,29 @@ class LearningContent {
         summary: row['summary'] as String,
         body: row['body'] as String,
         externalUrl: row['external_url'] as String?,
+        category: (row['category'] as String?) ?? 'general',
+        language: (row['language'] as String?) ?? 'en',
+        thumbnailUrl: row['thumbnail_url'] as String?,
       );
 }
 
 const learningContentTypes = ['course', 'video', 'ebook', 'success_story'];
+
+/// Order matters: this is the order of the filter chips.
+const learningCategoryLabels = <String, String>{
+  'general': 'General',
+  'vegetable_farming': 'Vegetable farming',
+  'rice': 'Rice',
+  'maize': 'Maize',
+  'soil_testing': 'Soil testing',
+  'compost_fertilizer': 'Compost & fertilizer',
+  'irrigation': 'Irrigation',
+  'pest_disease': 'Pest & disease',
+  'harvesting_selling': 'Harvesting & selling',
+};
+
+const learningLanguageLabels = <String, String>{
+  'ne': 'Nepali',
+  'hi': 'Hindi',
+  'en': 'English',
+};
