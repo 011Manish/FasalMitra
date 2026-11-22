@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/marketplace_listing.dart';
+import 'photo_service.dart' show maxPhotoBytes, PhotoTooLarge;
+
+const _listingBucket = 'listing-media';
 
 class MarketplaceService {
   MarketplaceService(this._sb);
@@ -8,12 +13,26 @@ class MarketplaceService {
 
   String get _uid => _sb.auth.currentUser!.id;
 
-  /// Active listings from everyone (including your own), newest first.
-  /// Uses the view so auctions come back with their current highest bid.
-  Future<List<MarketplaceListing>> browse({String? category}) async {
-    var query = _sb.from('marketplace_listings_with_highest_bid').select().eq('status', 'active');
-    if (category != null) {
-      query = query.eq('item_category', category);
+  /// 'farmer', 'buyer' or 'admin' (null if the profile can't be read).
+  Future<String?> myRole() async {
+    final row =
+        await _sb.from('profiles').select('role').eq('id', _uid).maybeSingle();
+    return row?['role'] as String?;
+  }
+
+  /// Active, visible listings from everyone, newest first.
+  /// [search] matches crop name, district or municipality.
+  Future<List<MarketplaceListing>> browse({String? search}) async {
+    var query = _sb
+        .from('marketplace_listings')
+        .select()
+        .eq('status', 'active')
+        .eq('is_hidden', false)
+        .neq('seller_id', _uid);
+    final q = _cleanSearch(search);
+    if (q.isNotEmpty) {
+      query = query
+          .or('title.ilike.%$q%,district.ilike.%$q%,municipality.ilike.%$q%');
     }
     final rows = await query.order('created_at', ascending: false);
     return (rows as List)
@@ -23,7 +42,7 @@ class MarketplaceService {
 
   Future<List<MarketplaceListing>> myListings() async {
     final rows = await _sb
-        .from('marketplace_listings_with_highest_bid')
+        .from('marketplace_listings')
         .select()
         .eq('seller_id', _uid)
         .order('created_at', ascending: false);
@@ -41,73 +60,121 @@ class MarketplaceService {
     return MarketplaceListing.fromMap(row);
   }
 
-  Future<void> cancel(String listingId) async {
-    await _sb.from('marketplace_listings').update({'status': 'cancelled'}).eq('id', listingId);
+  /// 'active' (available), 'sold' or 'cancelled'.
+  Future<void> setStatus(String listingId, String status) async {
+    await _sb
+        .from('marketplace_listings')
+        .update({'status': status}).eq('id', listingId);
   }
 
-  /// Seller manually marks a fixed-price listing as sold (no payment
-  /// processing in this phase — settlement happens off-app).
-  Future<void> markSold(String listingId) async {
-    await _sb.from('marketplace_listings').update({'status': 'sold'}).eq('id', listingId);
-  }
+  // Photos ----------------------------------------------------------
 
-  // Bids (auctions) -------------------------------------------------
-
-  Future<List<MarketplaceBid>> bidsFor(String listingId) async {
+  Future<List<ListingPhoto>> photos(String listingId) async {
     final rows = await _sb
-        .from('marketplace_bids')
+        .from('listing_photos')
         .select()
         .eq('listing_id', listingId)
-        .order('amount', ascending: false);
-    return (rows as List).map((r) => MarketplaceBid.fromMap(r as Map<String, dynamic>)).toList();
-  }
-
-  /// Throws a PostgrestException with a readable message if the bid is
-  /// rejected (too low, auction ended, bidding on your own listing, etc.) —
-  /// the server-side trigger is the source of truth, this is just the call.
-  Future<MarketplaceBid> placeBid(String listingId, double amount) async {
-    final row = await _sb
-        .from('marketplace_bids')
-        .insert({'listing_id': listingId, 'bidder_id': _uid, 'amount': amount})
-        .select()
-        .single();
-    return MarketplaceBid.fromMap(row);
-  }
-
-  // Orders (fixed-price "request to buy") ----------------------------
-
-  Future<MarketplaceOrder> requestToBuy(String listingId, double quantity) async {
-    final row = await _sb
-        .from('marketplace_orders')
-        .insert({'listing_id': listingId, 'buyer_id': _uid, 'quantity': quantity})
-        .select()
-        .single();
-    return MarketplaceOrder.fromMap(row);
-  }
-
-  Future<List<MarketplaceOrder>> myPurchaseRequests() async {
-    final rows = await _sb
-        .from('marketplace_orders')
-        .select()
-        .eq('buyer_id', _uid)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: true);
     return (rows as List)
-        .map((r) => MarketplaceOrder.fromMap(r as Map<String, dynamic>))
+        .map((r) => ListingPhoto.fromMap(r as Map<String, dynamic>))
         .toList();
   }
 
-  Future<List<MarketplaceOrder>> incomingOrders() async {
+  Future<ListingPhoto> uploadPhoto({
+    required String listingId,
+    required File file,
+  }) async {
+    final size = await file.length();
+    if (size > maxPhotoBytes) throw PhotoTooLarge(size);
+
+    final ext = _extensionFor(file.path);
+    final filename = '${DateTime.now().toUtc().millisecondsSinceEpoch}-'
+        '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}$ext';
+    // Path convention: <seller id>/<listing id>/<file>
+    final path = '$_uid/$listingId/$filename';
+
+    await _sb.storage.from(_listingBucket).upload(
+          path,
+          file,
+          fileOptions:
+              FileOptions(contentType: _contentTypeFor(ext), upsert: false),
+        );
+
+    try {
+      final row = await _sb
+          .from('listing_photos')
+          .insert({
+            'listing_id': listingId,
+            'user_id': _uid,
+            'storage_path': path,
+          })
+          .select()
+          .single();
+      return ListingPhoto.fromMap(row);
+    } catch (e) {
+      await _sb.storage.from(_listingBucket).remove([path]);
+      rethrow;
+    }
+  }
+
+  Future<String> signedUrl(String storagePath, {int expiresInSeconds = 3600}) {
+    return _sb.storage
+        .from(_listingBucket)
+        .createSignedUrl(storagePath, expiresInSeconds);
+  }
+
+  // Enquiries -------------------------------------------------------
+
+  Future<void> sendEnquiry({
+    required String listingId,
+    required String message,
+    String? phone,
+  }) async {
+    await _sb.from('listing_enquiries').insert({
+      'listing_id': listingId,
+      'buyer_id': _uid,
+      'message': message,
+      'contact_phone': phone,
+    });
+  }
+
+  /// Row-level security decides what comes back: the listing's seller sees
+  /// all enquiries on it, a buyer sees only their own.
+  Future<List<ListingEnquiry>> enquiriesFor(String listingId) async {
     final rows = await _sb
-        .from('marketplace_orders')
+        .from('listing_enquiries')
         .select()
-        .eq('seller_id', _uid)
+        .eq('listing_id', listingId)
         .order('created_at', ascending: false);
     return (rows as List)
-        .map((r) => MarketplaceOrder.fromMap(r as Map<String, dynamic>))
+        .map((r) => ListingEnquiry.fromMap(r as Map<String, dynamic>))
         .toList();
   }
 
-  Future<void> updateOrderStatus(String orderId, String status) async {
-    await _sb.from('marketplace_orders').update({'status': status}).eq('id', orderId);
+  // Helpers ---------------------------------------------------------
+
+  String _cleanSearch(String? raw) =>
+      (raw ?? '').replaceAll(RegExp(r'[,()%*\\]'), ' ').trim();
+
+  String _extensionFor(String path) {
+    final dot = path.lastIndexOf('.');
+    if (dot == -1) return '.jpg';
+    final ext = path.substring(dot).toLowerCase();
+    return const ['.jpg', '.jpeg', '.png', '.heic', '.webp'].contains(ext)
+        ? ext
+        : '.jpg';
+  }
+
+  String _contentTypeFor(String ext) {
+    switch (ext) {
+      case '.png':
+        return 'image/png';
+      case '.heic':
+        return 'image/heic';
+      case '.webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg';
+    }
   }
 }

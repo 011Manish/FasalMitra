@@ -7,6 +7,8 @@ import 'camera_choice_screen.dart';
 import 'farms_list_screen.dart';
 import 'home_grid_screen.dart';
 import 'marketplace_screen.dart';
+import 'notifications_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -67,18 +69,34 @@ class _HomeScreenState extends State<HomeScreen> {
           : AppBar(
               title: Text(titles[_tab]),
               actions: [
+                const NotificationBell(),
                 PopupMenuButton<String>(
                   onSelected: (v) async {
                     if (v == 'signout') {
                       await Supabase.instance.client.auth.signOut();
                     } else if (v == 'delete') {
                       await _confirmDeleteAccount();
+                    } else if (v == 'profile') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
                     }
                   },
                   itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'signout', child: Text('Sign out')),
                     PopupMenuItem(
-                        value: 'delete', child: Text('Delete my account')),
+                      value: 'profile',
+                      child: Text('Profile'),
+                    ),
+                    PopupMenuItem(
+                      value: 'signout',
+                      child: Text('Sign out'),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete my account'),
+                    ),
                   ],
                 ),
               ],

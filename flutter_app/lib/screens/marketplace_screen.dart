@@ -4,7 +4,7 @@ import '../models/marketplace_listing.dart';
 import '../services/marketplace_service.dart';
 import 'create_listing_screen.dart';
 import 'listing_detail_screen.dart';
-import 'my_orders_screen.dart';
+import 'my_listings_screen.dart';
 
 class MarketplaceScreen extends StatefulWidget {
   const MarketplaceScreen({super.key, required this.service});
@@ -15,30 +15,42 @@ class MarketplaceScreen extends StatefulWidget {
 }
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
-  String? _category;
-  late Future<List<MarketplaceListing>> _load;
+  final _searchCtrl = TextEditingController();
+  String _search = '';
+  late Future<List<MarketplaceListing>> _load = widget.service.browse();
+
+  String? _role;
+
+  bool get _canSell => _role == 'farmer' || _role == 'admin';
 
   @override
   void initState() {
     super.initState();
-    _load = widget.service.browse();
+    widget.service.myRole().then((r) {
+      if (mounted) setState(() => _role = r);
+    }).catchError((_) {});
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
-    setState(() => _load = widget.service.browse(category: _category));
+    setState(() => _load = widget.service.browse(search: _search));
     await _load;
   }
 
-  void _setCategory(String? category) {
-    setState(() {
-      _category = category;
-      _load = widget.service.browse(category: category);
-    });
+  void _runSearch(String value) {
+    _search = value.trim();
+    setState(() => _load = widget.service.browse(search: _search));
   }
 
   Future<void> _openCreate() async {
     final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => CreateListingScreen(service: widget.service)),
+      MaterialPageRoute(
+          builder: (_) => CreateListingScreen(service: widget.service)),
     );
     if (created == true) _refresh();
   }
@@ -46,7 +58,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   Future<void> _openDetail(MarketplaceListing listing) async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => ListingDetailScreen(service: widget.service, listing: listing),
+        builder: (_) =>
+            ListingDetailScreen(service: widget.service, listing: listing),
       ),
     );
     if (changed == true) _refresh();
@@ -59,41 +72,39 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         title: const Text('Marketplace'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.receipt_long_outlined),
-            tooltip: 'My orders',
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'My listings',
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => MyOrdersScreen(service: widget.service)),
+              MaterialPageRoute(
+                  builder: (_) => MyListingsScreen(service: widget.service)),
             ),
           ),
         ],
       ),
       body: Column(
         children: [
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: const Text('All'),
-                    selected: _category == null,
-                    onSelected: (_) => _setCategory(null),
-                  ),
-                ),
-                ...listingCategories.map(
-                  (c) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(listingCategoryLabels[c] ?? c),
-                      selected: _category == c,
-                      onSelected: (_) => _setCategory(c),
-                    ),
-                  ),
-                ),
-              ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: TextField(
+              controller: _searchCtrl,
+              textInputAction: TextInputAction.search,
+              onSubmitted: _runSearch,
+              decoration: InputDecoration(
+                hintText: 'Search crop or district',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchCtrl.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          _runSearch('');
+                        },
+                      ),
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (_) => setState(() {}),
             ),
           ),
           const Divider(height: 1),
@@ -116,11 +127,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   }
                   final listings = snap.data ?? [];
                   if (listings.isEmpty) {
-                    return ListView(children: const [
-                      SizedBox(height: 120),
+                    return ListView(children: [
+                      const SizedBox(height: 120),
                       Center(
                         child: Text(
-                          'No listings yet.\nTap + to sell something.',
+                          _search.isEmpty
+                              ? _canSell
+                                  ? 'No listings yet.\nTap + to sell something.'
+                                  : 'No listings yet.'
+                              : 'No listings match "$_search".',
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -132,17 +147,17 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                     itemBuilder: (_, i) {
                       final l = listings[i];
                       return ListTile(
-                        leading: CircleAvatar(
-                          child: Icon(l.isAuction ? Icons.gavel : Icons.sell_outlined),
-                        ),
+                        leading: const CircleAvatar(child: Icon(Icons.grass)),
                         title: Text(l.title),
                         subtitle: Text(
-                          '${listingCategoryLabels[l.itemCategory] ?? l.itemCategory} — '
-                          '${l.quantity} ${l.unit}'
-                          '${l.isAuction ? ' — auction' : ''}',
+                          [
+                            '${l.quantity} ${l.unit}',
+                            if (l.locationText.isNotEmpty) l.locationText,
+                          ].join(' • '),
                         ),
                         trailing: Text(
-                          '${l.currency} ${l.currentPrice.toStringAsFixed(2)}',
+                          '${l.currency} ${l.price.toStringAsFixed(2)}\n/ ${l.unit}',
+                          textAlign: TextAlign.right,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         onTap: () => _openDetail(l),
@@ -155,10 +170,13 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openCreate,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _canSell
+          ? FloatingActionButton(
+              onPressed: _openCreate,
+              tooltip: 'Sell produce',
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

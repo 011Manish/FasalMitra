@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/farm_photo.dart';
@@ -32,11 +32,21 @@ class _FarmEditScreenState extends State<FarmEditScreen> {
 
   late final _name = TextEditingController(text: widget.existing?.name ?? '');
   late final _size = TextEditingController(
-      text: widget.existing?.landSizeHectares.toString() ?? '');
+      text:
+          (widget.existing?.landSizeValue ?? widget.existing?.landSizeHectares)
+                  ?.toString() ??
+              '');
   late final _location =
       TextEditingController(text: widget.existing?.locationLabel ?? '');
+  late final _stateProvince =
+      TextEditingController(text: widget.existing?.stateProvince ?? '');
+  late final _district =
+      TextEditingController(text: widget.existing?.district ?? '');
+  late final _municipality =
+      TextEditingController(text: widget.existing?.municipality ?? '');
 
   late String _crop = widget.existing?.cropType ?? cropTypes.first;
+  late String _unit = widget.existing?.landUnit ?? 'hectare';
   late String _soil = widget.existing?.soilType ?? soilTypes.first;
   late String _irrig =
       widget.existing?.irrigationSystem ?? irrigationSystems.first;
@@ -47,6 +57,27 @@ class _FarmEditScreenState extends State<FarmEditScreen> {
       widget.existing == null ? Future.value(null) : _loadCurrentPhoto();
 
   bool _busy = false;
+
+  @override
+  void dispose() {
+    for (final c in [
+      _name,
+      _size,
+      _location,
+      _stateProvince,
+      _district,
+      _municipality,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Trimmed text, or null when empty so the database stores NULL, not ''.
+  String? _textOrNull(TextEditingController c) {
+    final text = c.text.trim();
+    return text.isEmpty ? null : text;
+  }
 
   Future<FarmPhoto?> _loadCurrentPhoto() async {
     final photos = await _photoService.listForFarm(widget.existing!.id);
@@ -117,18 +148,30 @@ class _FarmEditScreenState extends State<FarmEditScreen> {
 
     String? photoWarning;
     try {
-      final size = double.parse(_size.text.trim());
+      final entered = double.parse(_size.text.trim());
+      final hectares = double.parse(
+          (entered * landUnitToHectares[_unit]!).toStringAsFixed(3));
+      if (hectares <= 0) {
+        throw Exception('Land size is too small');
+      }
+      if (hectares > 10000) {
+        throw Exception('Land size is too large');
+      }
       final farm = FarmProfile(
         id: widget.existing?.id ?? '',
         userId: '',
         name: _name.text.trim(),
         cropType: _crop,
-        landSizeHectares: size,
+        landSizeHectares: hectares,
+        landSizeValue: entered,
+        landUnit: _unit,
         plantationDate: _plantedOn,
         soilType: _soil,
         irrigationSystem: _irrig,
-        locationLabel:
-            _location.text.trim().isEmpty ? null : _location.text.trim(),
+        locationLabel: _textOrNull(_location),
+        stateProvince: _textOrNull(_stateProvince),
+        district: _textOrNull(_district),
+        municipality: _textOrNull(_municipality),
       );
 
       if (widget.existing == null) {
@@ -149,11 +192,16 @@ class _FarmEditScreenState extends State<FarmEditScreen> {
           'name': farm.name,
           'crop_type': farm.cropType,
           'land_size_hectares': farm.landSizeHectares,
+          'land_size_value': farm.landSizeValue,
+          'land_unit': farm.landUnit,
           'plantation_date':
               farm.plantationDate.toIso8601String().substring(0, 10),
           'soil_type': farm.soilType,
           'irrigation_system': farm.irrigationSystem,
           'location_label': farm.locationLabel,
+          'state_province': farm.stateProvince,
+          'district': farm.district,
+          'municipality': farm.municipality,
         });
       }
       if (!mounted) return;
@@ -301,20 +349,39 @@ class _FarmEditScreenState extends State<FarmEditScreen> {
                 onChanged: (v) => setState(() => _crop = v!),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _size,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration:
-                    const InputDecoration(labelText: 'Land size (hectares)'),
-                validator: (v) {
-                  final parsed = double.tryParse(v?.trim() ?? '');
-                  if (parsed == null || parsed <= 0) {
-                    return 'Enter a positive number';
-                  }
-                  if (parsed > 10000) return 'Too large';
-                  return null;
-                },
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _size,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Land size'),
+                      validator: (v) {
+                        final parsed = double.tryParse(v?.trim() ?? '');
+                        if (parsed == null || parsed <= 0) {
+                          return 'Enter a positive number';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 130,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _unit,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Unit'),
+                      items: landUnitToHectares.keys
+                          .map(
+                              (u) => DropdownMenuItem(value: u, child: Text(u)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _unit = v!),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               InkWell(
@@ -343,6 +410,27 @@ class _FarmEditScreenState extends State<FarmEditScreen> {
                     .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                     .toList(),
                 onChanged: (v) => setState(() => _irrig = v!),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _stateProvince,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                    labelText: 'State / Province (optional)'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _district,
+                textCapitalization: TextCapitalization.words,
+                decoration:
+                    const InputDecoration(labelText: 'District (optional)'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _municipality,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                    labelText: 'Municipality / Village (optional)'),
               ),
               const SizedBox(height: 12),
               TextFormField(

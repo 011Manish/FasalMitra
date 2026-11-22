@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'crop_guide_screen.dart';
 import 'learning_academy_screen.dart';
 import 'nearby_agriculture_screen.dart';
 import 'price_prediction_screen.dart';
@@ -49,6 +50,15 @@ class HomeGridScreen extends StatelessWidget {
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const ShopScreen(),
+            ),
+          ),
+        ),
+        _HomeTile(
+          icon: Icons.eco_outlined,
+          label: 'Crop Guide',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const CropGuideScreen(),
             ),
           ),
         ),

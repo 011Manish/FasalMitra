@@ -11,41 +11,46 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static final _phoneRe = RegExp(r'^\+?[0-9]{7,15}$');
+  static const _phoneHint = 'Enter a valid phone number, e.g. +9779812345678';
+  static const _gap = SizedBox(height: 12);
+
   final _phoneCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _signUpPhoneCtrl = TextEditingController();
 
-  bool _codeSent = false;
   bool _busy = false;
-  bool _useEmailFallback = false;
+  bool _codeSent = false;
+  bool _useEmail = false;
   _EmailMode _mode = _EmailMode.signIn;
+  String _role = 'farmer'; // database accepts: farmer, buyer
+  String _country = 'NP'; // database accepts: NP, IN
 
-  final _phoneRe = RegExp(r'^\+?[0-9]{7,15}$');
+  GoTrueClient get _auth => Supabase.instance.client.auth;
 
   @override
   void dispose() {
-    _phoneCtrl.dispose();
-    _codeCtrl.dispose();
-    _emailCtrl.dispose();
-    _passwordCtrl.dispose();
+    for (final c in [
+      _phoneCtrl,
+      _codeCtrl,
+      _emailCtrl,
+      _passwordCtrl,
+      _signUpPhoneCtrl,
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  // ---------- Phone ----------
+  // ---------- Actions ----------
 
-  Future<void> _sendOtp() async {
-    final phone = _phoneCtrl.text.trim();
-    if (!_phoneRe.hasMatch(phone)) {
-      _snack('Enter a valid phone number, e.g. +9779812345678');
-      return;
-    }
+  /// Runs [action] with the busy flag set and shows any auth error.
+  Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
     try {
-      await Supabase.instance.client.auth.signInWithOtp(phone: phone);
-      if (!mounted) return;
-      setState(() => _codeSent = true);
-      _snack('Code sent. Check your SMS.');
+      await action();
     } on AuthException catch (e) {
       _snack(e.message);
     } finally {
@@ -53,98 +58,121 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _verifyOtp() async {
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Only NP and IN are valid in the database, so anything else returns null.
+  String? _countryFromPhone(String phone) {
+    if (phone.startsWith('+977')) return 'NP';
+    if (phone.startsWith('+91')) return 'IN';
+    return null;
+  }
+
+  void _sendOtp() {
     final phone = _phoneCtrl.text.trim();
+    if (!_phoneRe.hasMatch(phone)) {
+      _snack(_phoneHint);
+      return;
+    }
+    _run(() async {
+      final country = _countryFromPhone(phone);
+      await _auth.signInWithOtp(
+        phone: phone,
+        data: {'phone': phone, if (country != null) 'country': country},
+      );
+      if (!mounted) return;
+      setState(() => _codeSent = true);
+      _snack('Code sent. Check your SMS.');
+    });
+  }
+
+  void _verifyOtp() {
     final code = _codeCtrl.text.trim();
     if (code.length != 6) {
       _snack('Code must be 6 digits');
       return;
     }
-    setState(() => _busy = true);
-    try {
-      await Supabase.instance.client.auth.verifyOTP(
-        type: OtpType.sms,
-        phone: phone,
-        token: code,
-      );
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    _run(() => _auth.verifyOTP(
+          type: OtpType.sms,
+          phone: _phoneCtrl.text.trim(),
+          token: code,
+        ));
   }
 
-  // ---------- Email ----------
-
-  Future<void> _emailSignIn() async {
+  void _signIn() {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     if (email.isEmpty || password.isEmpty) {
       _snack('Enter your email and password');
       return;
     }
-    setState(() => _busy = true);
-    try {
-      await Supabase.instance.client.auth
-          .signInWithPassword(email: email, password: password);
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    _run(() => _auth.signInWithPassword(email: email, password: password));
   }
 
-  Future<void> _emailSignUp() async {
+  void _signUp() {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
+    final phone = _signUpPhoneCtrl.text.trim();
     if (email.isEmpty || password.length < 8) {
       _snack('Email + password (min 8 chars) required');
       return;
     }
-    setState(() => _busy = true);
-    try {
-      final res = await Supabase.instance.client.auth
-          .signUp(email: email, password: password);
-      if (!mounted) return;
-      if (res.session == null) {
-        _snack('Account created. Check your email to confirm, then sign in.');
-        setState(() => _mode = _EmailMode.signIn);
-      }
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
+    if (phone.isNotEmpty && !_phoneRe.hasMatch(phone)) {
+      _snack(_phoneHint);
+      return;
     }
+    _run(() async {
+      final res = await _auth.signUp(
+        email: email,
+        password: password,
+        data: {
+          'role': _role,
+          'country': _country,
+          if (phone.isNotEmpty) 'phone': phone,
+        },
+      );
+      if (res.session != null || !mounted) return;
+      _snack('Account created. Check your email to confirm, then sign in.');
+      setState(() => _mode = _EmailMode.signIn);
+    });
   }
 
-  Future<void> _sendResetLink() async {
+  void _sendResetLink() {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
       _snack('Enter your email first');
       return;
     }
-    setState(() => _busy = true);
-    try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(
+    _run(() async {
+      await _auth.resetPasswordForEmail(
         email,
         redirectTo: 'fasalmitra://login-callback/',
       );
       _snack('Reset link sent. Open it on this phone.');
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    });
   }
 
-  void _setMode(_EmailMode m) => setState(() => _mode = m);
+  void _setMode(_EmailMode mode) => setState(() => _mode = mode);
 
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
+  void _toggleMethod() => setState(() {
+        _useEmail = !_useEmail;
+        _codeSent = false;
+        _mode = _EmailMode.signIn;
+      });
 
   // ---------- UI ----------
+
+  String get _subtitle => !_useEmail
+      ? 'Sign in with your phone number to continue.'
+      : switch (_mode) {
+          _EmailMode.signIn => 'Sign in with your email and password.',
+          _EmailMode.signUp => 'Create a new account.',
+          _EmailMode.forgot =>
+            'Enter your email and we will send you a reset link.',
+        };
 
   @override
   Widget build(BuildContext context) {
@@ -159,21 +187,15 @@ class _LoginScreenState extends State<LoginScreen> {
               Text('FASALMITRA',
                   style: Theme.of(context).textTheme.displaySmall),
               const SizedBox(height: 8),
-              Text(_subtitle()),
+              Text(_subtitle),
               const SizedBox(height: 24),
-              if (!_useEmailFallback) ..._phoneFlow() else ..._emailFlow(),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => setState(() {
-                          _useEmailFallback = !_useEmailFallback;
-                          _codeSent = false;
-                          _mode = _EmailMode.signIn;
-                        }),
-                child: Text(_useEmailFallback
+              ..._useEmail ? _emailFlow() : _phoneFlow(),
+              _gap,
+              _link(
+                _useEmail
                     ? 'Use phone number instead'
-                    : 'Use email + password instead'),
+                    : 'Use email + password instead',
+                _toggleMethod,
               ),
             ],
           ),
@@ -182,113 +204,110 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  String _subtitle() {
-    if (!_useEmailFallback) return 'Sign in with your phone number to continue.';
-    switch (_mode) {
-      case _EmailMode.signIn:
-        return 'Sign in with your email and password.';
-      case _EmailMode.signUp:
-        return 'Create a new account.';
-      case _EmailMode.forgot:
-        return 'Enter your email and we will send you a reset link.';
-    }
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    TextInputType? keyboard,
+    bool obscure = false,
+    bool enabled = true,
+    int? maxLength,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboard,
+      obscureText: obscure,
+      enabled: enabled,
+      maxLength: maxLength,
+      decoration: InputDecoration(labelText: label),
+    );
+  }
+
+  Widget _button(String label, VoidCallback onPressed) =>
+      FilledButton(onPressed: _busy ? null : onPressed, child: Text(label));
+
+  Widget _outlined(String label, VoidCallback onPressed) =>
+      OutlinedButton(onPressed: _busy ? null : onPressed, child: Text(label));
+
+  Widget _link(String label, VoidCallback onPressed) =>
+      TextButton(onPressed: _busy ? null : onPressed, child: Text(label));
+
+  Widget _choice(
+    String label,
+    Map<String, String> options,
+    String selected,
+    ValueChanged<String> onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<String>(
+          segments: [
+            for (final e in options.entries)
+              ButtonSegment(value: e.key, label: Text(e.value)),
+          ],
+          selected: {selected},
+          onSelectionChanged: _busy ? null : (s) => onChanged(s.first),
+        ),
+      ],
+    );
   }
 
   List<Widget> _phoneFlow() => [
-        TextField(
-          controller: _phoneCtrl,
-          keyboardType: TextInputType.phone,
-          decoration:
-              const InputDecoration(labelText: 'Phone (with country code)'),
-          enabled: !_codeSent,
-        ),
-        const SizedBox(height: 12),
+        _field(_phoneCtrl, 'Phone (with country code)',
+            keyboard: TextInputType.phone, enabled: !_codeSent),
+        _gap,
         if (_codeSent)
-          TextField(
-            controller: _codeCtrl,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            decoration: const InputDecoration(labelText: '6-digit code'),
-          ),
-        const SizedBox(height: 12),
-        FilledButton(
-          onPressed: _busy ? null : (_codeSent ? _verifyOtp : _sendOtp),
-          child: Text(_codeSent ? 'Verify code' : 'Send code'),
+          _field(_codeCtrl, '6-digit code',
+              keyboard: TextInputType.number, maxLength: 6),
+        _gap,
+        _button(
+          _codeSent ? 'Verify code' : 'Send code',
+          _codeSent ? _verifyOtp : _sendOtp,
         ),
         if (_codeSent)
-          TextButton(
-            onPressed: _busy ? null : () => setState(() => _codeSent = false),
-            child: const Text('Use a different number'),
-          ),
+          _link('Use a different number',
+              () => setState(() => _codeSent = false)),
       ];
 
   List<Widget> _emailFlow() {
-    final emailField = TextField(
-      controller: _emailCtrl,
-      keyboardType: TextInputType.emailAddress,
-      decoration: const InputDecoration(labelText: 'Email'),
-    );
-
-    switch (_mode) {
-      case _EmailMode.signIn:
-        return [
-          emailField,
-          const SizedBox(height: 12),
-          TextField(
-            controller: _passwordCtrl,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: 'Password'),
-          ),
+    final email =
+        _field(_emailCtrl, 'Email', keyboard: TextInputType.emailAddress);
+    return switch (_mode) {
+      _EmailMode.signIn => [
+          email,
+          _gap,
+          _field(_passwordCtrl, 'Password', obscure: true),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _emailSignIn,
-            child: const Text('Sign in'),
-          ),
+          _button('Sign in', _signIn),
           const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: _busy ? null : () => _setMode(_EmailMode.signUp),
-            child: const Text('Create account'),
-          ),
-          TextButton(
-            onPressed: _busy ? null : () => _setMode(_EmailMode.forgot),
-            child: const Text('Forgot password?'),
-          ),
-        ];
-
-      case _EmailMode.signUp:
-        return [
-          emailField,
-          const SizedBox(height: 12),
-          TextField(
-            controller: _passwordCtrl,
-            obscureText: true,
-            decoration:
-                const InputDecoration(labelText: 'Password (min 8 characters)'),
-          ),
+          _outlined('Create account', () => _setMode(_EmailMode.signUp)),
+          _link('Forgot password?', () => _setMode(_EmailMode.forgot)),
+        ],
+      _EmailMode.signUp => [
+          email,
+          _gap,
+          _field(_passwordCtrl, 'Password (min 8 characters)', obscure: true),
+          _gap,
+          _field(_signUpPhoneCtrl, 'Phone (optional, with country code)',
+              keyboard: TextInputType.phone),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _emailSignUp,
-            child: const Text('Create account'),
-          ),
-          TextButton(
-            onPressed: _busy ? null : () => _setMode(_EmailMode.signIn),
-            child: const Text('I already have an account'),
-          ),
-        ];
-
-      case _EmailMode.forgot:
-        return [
-          emailField,
+          _choice('I am a', const {'farmer': 'Farmer', 'buyer': 'Buyer'}, _role,
+              (v) => setState(() => _role = v)),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _sendResetLink,
-            child: const Text('Send reset link'),
-          ),
-          TextButton(
-            onPressed: _busy ? null : () => _setMode(_EmailMode.signIn),
-            child: const Text('Back to sign in'),
-          ),
-        ];
-    }
+          _choice('Country', const {'NP': 'Nepal', 'IN': 'India'}, _country,
+              (v) => setState(() => _country = v)),
+          const SizedBox(height: 16),
+          _button('Create account', _signUp),
+          _link('I already have an account', () => _setMode(_EmailMode.signIn)),
+        ],
+      _EmailMode.forgot => [
+          email,
+          const SizedBox(height: 16),
+          _button('Send reset link', _sendResetLink),
+          _link('Back to sign in', () => _setMode(_EmailMode.signIn)),
+        ],
+    };
   }
 }
