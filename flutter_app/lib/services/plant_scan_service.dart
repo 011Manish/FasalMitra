@@ -32,12 +32,12 @@ class PlantScanService {
 
   String get _uid => _sb.auth.currentUser!.id;
 
-  Future<String> uploadScanPhoto(
-      {required String farmId, required File file}) async {
+  Future<String> uploadScanPhoto({String? farmId, required File file}) async {
     final ext = _extensionFor(file.path);
     final filename = '${DateTime.now().toUtc().millisecondsSinceEpoch}-'
         '${_shortId()}$ext';
-    final path = '$_uid/$farmId/plant-scans/$filename';
+    final folder = farmId == null ? _uid : '$_uid/$farmId';
+    final path = '$folder/plant-scans/$filename';
 
     await _sb.storage.from(_bucket).upload(
           path,
@@ -49,9 +49,9 @@ class PlantScanService {
   }
 
   Future<PlantScan> analyze(
-      {required String farmId, required String storagePath}) async {
+      {String? farmId, required String storagePath}) async {
     final data = await _invoke('analyze-plant-photo', {
-      'farm_id': farmId,
+      if (farmId != null) 'farm_id': farmId,
       'storage_path': storagePath,
     });
     return PlantScan.fromMap(data as Map<String, dynamic>);
@@ -66,11 +66,10 @@ class PlantScanService {
     return (data as Map<String, dynamic>)['answer']?.toString() ?? '';
   }
 
-  Future<List<PlantScan>> listForFarm(String farmId) async {
+  Future<List<PlantScan>> listMine() async {
     final rows = await _sb
         .from('plant_health_scans')
         .select()
-        .eq('farm_id', farmId)
         .order('created_at', ascending: false);
     return (rows as List)
         .map((r) => PlantScan.fromMap(r as Map<String, dynamic>))

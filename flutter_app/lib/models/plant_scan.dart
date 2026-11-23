@@ -9,7 +9,7 @@ class PlantScan {
   });
 
   final String id;
-  final String farmId;
+  final String? farmId;
   final String photoStoragePath;
   final Map<String, dynamic> analysis;
   final String confidenceLevel;
@@ -17,7 +17,7 @@ class PlantScan {
 
   factory PlantScan.fromMap(Map<String, dynamic> map) => PlantScan(
         id: map['id'] as String,
-        farmId: map['farm_id'] as String,
+        farmId: map['farm_id'] as String?,
         photoStoragePath: map['photo_storage_path'] as String,
         analysis: Map<String, dynamic>.from(map['analysis'] as Map),
         confidenceLevel: map['confidence_level'] as String,

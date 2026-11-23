@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../models/farm_profile.dart';
 import '../models/plant_scan.dart';
 import '../services/plant_scan_service.dart';
 import 'plant_scan_result_screen.dart';
 
 class PlantScanHistoryScreen extends StatefulWidget {
-  const PlantScanHistoryScreen(
-      {super.key, required this.farm, required this.service});
-  final FarmProfile farm;
+  const PlantScanHistoryScreen({super.key, required this.service});
   final PlantScanService service;
 
   @override
@@ -16,12 +13,12 @@ class PlantScanHistoryScreen extends StatefulWidget {
 }
 
 class _PlantScanHistoryScreenState extends State<PlantScanHistoryScreen> {
-  late final _future = widget.service.listForFarm(widget.farm.id);
+  late final _future = widget.service.listMine();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.farm.name} — scan history')),
+      appBar: AppBar(title: const Text('Scan history')),
       body: FutureBuilder<List<PlantScan>>(
         future: _future,
         builder: (context, snapshot) {
@@ -29,12 +26,12 @@ class _PlantScanHistoryScreenState extends State<PlantScanHistoryScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(
-                child: Text('Couldn\'t load history: ${snapshot.error}'));
+            return const Center(
+                child: Text('Could not load history. Check your internet.'));
           }
           final scans = snapshot.data!;
           if (scans.isEmpty) {
-            return const Center(child: Text('No scans yet for this farm.'));
+            return const Center(child: Text('No scans yet.'));
           }
           return ListView.builder(
             itemCount: scans.length,

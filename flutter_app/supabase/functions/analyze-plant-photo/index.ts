@@ -1,12 +1,13 @@
-// One-shot plant health analysis: the farmer uploads a photo, this calls the
-// AI service once and returns a full report. Follow-up questions are handled
-// by plant-scan-followup.
+// One-shot plant health analysis: the user uploads a photo, this calls the
+// AI service once and returns a full report. A farm is optional. Follow-up
+// questions are handled by plant-scan-followup.
 //
 // Runs with the caller's JWT so DB writes go through RLS (no service-role).
 // The AI key is read from the GEMINI_API_KEY secret. When it is missing the
 // function answers `no_api_key` so the app can say so.
 //
-// Body: { "farm_id": "<uuid>", "storage_path": "<uid>/<farm_id>/plant-scans/<file>" }
+// Body: { "storage_path": "<uid>/plant-scans/<file>" }
+//   or  { "farm_id": "<uuid>", "storage_path": "<uid>/<farm_id>/plant-scans/<file>" }
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
@@ -101,16 +102,16 @@ serve(async (req) => {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return json({ error: 'missing_authorization' }, 401);
 
-  let body: { farm_id?: string; storage_path?: string };
+  let body: { farm_id?: string | null; storage_path?: string };
   try {
     body = await req.json();
   } catch {
     return json({ error: 'invalid_json' }, 400);
   }
 
-  const farmId = body.farm_id;
+  const farmId = body.farm_id ?? null;
   const storagePath = body.storage_path;
-  if (!farmId || !/^[0-9a-f-]{36}$/i.test(farmId)) {
+  if (farmId !== null && !/^[0-9a-f-]{36}$/i.test(farmId)) {
     return json({ error: 'invalid_farm_id' }, 400);
   }
   if (!storagePath || storagePath.includes('..')) {
@@ -129,12 +130,18 @@ serve(async (req) => {
   const aiKey = Deno.env.get('GEMINI_API_KEY');
   if (!aiKey) return json({ error: 'no_api_key' }, 503);
 
-  const farm = await loadFarm(sb, farmId);
-  if (!farm || farm.user_id !== user.id) {
-    return json({ error: 'farm_not_found' }, 404);
+  let cropType: string | null = null;
+  if (farmId !== null) {
+    const farm = await loadFarm(sb, farmId);
+    if (!farm || farm.user_id !== user.id) {
+      return json({ error: 'farm_not_found' }, 404);
+    }
+    cropType = farm.crop_type;
   }
 
-  const expectedPrefix = `${user.id}/${farmId}/plant-scans/`;
+  const expectedPrefix = farmId !== null
+    ? `${user.id}/${farmId}/plant-scans/`
+    : `${user.id}/plant-scans/`;
   if (!storagePath.startsWith(expectedPrefix)) {
     return json({ error: 'storage_path_mismatch' }, 403);
   }
@@ -149,8 +156,8 @@ serve(async (req) => {
   const base64Image = encodeBase64(bytes);
   const mediaType = mediaTypeFor(storagePath);
 
-  const contextLine = farm.crop_type
-    ? `The farmer says this field is growing: ${farm.crop_type}.`
+  const contextLine = cropType
+    ? `The farmer says this field is growing: ${cropType}.`
     : '';
 
   let aiRes: Response;

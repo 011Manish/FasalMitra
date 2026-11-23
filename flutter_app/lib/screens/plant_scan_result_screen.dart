@@ -8,7 +8,7 @@ import 'plant_scan_followup_chat_screen.dart';
 class PlantScanResultScreen extends StatefulWidget {
   const PlantScanResultScreen.newScan({
     super.key,
-    required String this.farmId,
+    this.farmId,
     required String this.storagePath,
   }) : existingScan = null;
 
@@ -38,7 +38,7 @@ class _PlantScanResultScreenState extends State<PlantScanResultScreen> {
   Future<PlantScan> _runAnalysis() {
     if (widget.existingScan != null) return Future.value(widget.existingScan);
     return _scans.analyze(
-        farmId: widget.farmId!, storagePath: widget.storagePath!);
+        farmId: widget.farmId, storagePath: widget.storagePath!);
   }
 
   void _retry() => setState(() => _future = _runAnalysis());
