@@ -13,6 +13,19 @@ class PlantScanFailed implements Exception {
   String toString() => 'Plant health analysis failed: $reason';
 }
 
+/// A short plain message for the user. Never shows raw error text.
+String plantScanErrorMessage(Object error) {
+  if (error is PlantScanFailed) {
+    switch (error.reason) {
+      case 'no_api_key':
+        return 'No API key added yet.';
+      case 'ai_key_rejected':
+        return 'The API key is not valid. Add a working key.';
+    }
+  }
+  return 'Could not complete this request. Check your internet and try again.';
+}
+
 class PlantScanService {
   PlantScanService(this._sb);
   final SupabaseClient _sb;
@@ -37,19 +50,20 @@ class PlantScanService {
 
   Future<PlantScan> analyze(
       {required String farmId, required String storagePath}) async {
-    final res = await _sb.functions.invoke('analyze-plant-photo', body: {
+    final data = await _invoke('analyze-plant-photo', {
       'farm_id': farmId,
       'storage_path': storagePath,
     });
+    return PlantScan.fromMap(data as Map<String, dynamic>);
+  }
 
-    if (res.status != 200) {
-      final data = res.data;
-      final reason = data is Map
-          ? (data['error']?.toString() ?? 'unknown_error')
-          : 'unknown_error';
-      throw PlantScanFailed(reason);
-    }
-    return PlantScan.fromMap(res.data as Map<String, dynamic>);
+  Future<String> askFollowUp(
+      {required String scanId, required String question}) async {
+    final data = await _invoke('plant-scan-followup', {
+      'scan_id': scanId,
+      'question': question,
+    });
+    return (data as Map<String, dynamic>)['answer']?.toString() ?? '';
   }
 
   Future<List<PlantScan>> listForFarm(String farmId) async {
@@ -61,6 +75,18 @@ class PlantScanService {
     return (rows as List)
         .map((r) => PlantScan.fromMap(r as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<dynamic> _invoke(String function, Map<String, dynamic> body) async {
+    try {
+      final res = await _sb.functions.invoke(function, body: body);
+      return res.data;
+    } on FunctionException catch (e) {
+      final details = e.details;
+      throw PlantScanFailed(details is Map
+          ? (details['error']?.toString() ?? 'unknown_error')
+          : 'unknown_error');
+    }
   }
 
   String _extensionFor(String path) {

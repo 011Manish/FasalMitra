@@ -1,9 +1,10 @@
-// One-shot plant health analysis: farmer uploads a photo, this calls Gemini
-// vision once and returns a full report. No follow-up conversation here —
-// see plant-scan-followup for that.
+// One-shot plant health analysis: the farmer uploads a photo, this calls the
+// AI service once and returns a full report. Follow-up questions are handled
+// by plant-scan-followup.
 //
-// Runs with the caller's JWT so DB writes go through RLS — no service-role
-// escalation, same as regenerate-schedule.
+// Runs with the caller's JWT so DB writes go through RLS (no service-role).
+// The AI key is read from the GEMINI_API_KEY secret. When it is missing the
+// function answers `no_api_key` so the app can say so.
 //
 // Body: { "farm_id": "<uuid>", "storage_path": "<uid>/<farm_id>/plant-scans/<file>" }
 
@@ -35,6 +36,11 @@ function mediaTypeFor(path: string): string {
     case '.heic': return 'image/heic';
     default: return 'image/jpeg';
   }
+}
+
+function keyWasRejected(status: number, detail: string): boolean {
+  return status === 401 || status === 403 ||
+    (status === 400 && detail.includes('API_KEY_INVALID'));
 }
 
 const ANALYSIS_SCHEMA_PROMPT = `You are assisting a farmer by analyzing a single photo of their crop.
@@ -120,6 +126,9 @@ serve(async (req) => {
   const { data: { user }, error: userErr } = await sb.auth.getUser();
   if (userErr || !user) return json({ error: 'invalid_session' }, 401);
 
+  const aiKey = Deno.env.get('GEMINI_API_KEY');
+  if (!aiKey) return json({ error: 'no_api_key' }, 503);
+
   const farm = await loadFarm(sb, farmId);
   if (!farm || farm.user_id !== user.id) {
     return json({ error: 'farm_not_found' }, 404);
@@ -131,14 +140,14 @@ serve(async (req) => {
   }
 
   const { data: blob, error: dlErr } = await sb.storage.from(BUCKET).download(storagePath);
-  if (dlErr || !blob) return json({ error: 'photo_not_found', detail: dlErr?.message }, 404);
+  if (dlErr || !blob) {
+    console.error('photo download failed', dlErr?.message);
+    return json({ error: 'photo_not_found' }, 404);
+  }
 
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const base64Image = encodeBase64(bytes);
   const mediaType = mediaTypeFor(storagePath);
-
-  const geminiKey = Deno.env.get('GEMINI_API_KEY');
-  if (!geminiKey) return json({ error: 'server_misconfigured' }, 500);
 
   const contextLine = farm.crop_type
     ? `The farmer says this field is growing: ${farm.crop_type}.`
@@ -147,10 +156,10 @@ serve(async (req) => {
   let aiRes: Response;
   try {
     aiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': aiKey },
         body: JSON.stringify({
           contents: [{
             parts: [
@@ -163,12 +172,17 @@ serve(async (req) => {
       }
     );
   } catch (e) {
-    return json({ error: 'gemini_unreachable', detail: String(e) }, 502);
+    console.error('AI service unreachable', String(e));
+    return json({ error: 'ai_unreachable' }, 502);
   }
 
   if (!aiRes.ok) {
     const detail = await aiRes.text();
-    return json({ error: 'gemini_error', detail }, 502);
+    console.error('AI service error', aiRes.status, detail);
+    return json(
+      { error: keyWasRejected(aiRes.status, detail) ? 'ai_key_rejected' : 'ai_error' },
+      502
+    );
   }
 
   const aiData = await aiRes.json();
@@ -179,7 +193,8 @@ serve(async (req) => {
   try {
     analysis = JSON.parse(cleaned);
   } catch {
-    return json({ error: 'analysis_parse_failed', detail: rawText }, 502);
+    console.error('analysis parse failed', rawText);
+    return json({ error: 'analysis_parse_failed' }, 502);
   }
 
   analysis.health_score = clampScore(analysis.health_score);
@@ -198,7 +213,10 @@ serve(async (req) => {
     .select('*')
     .single();
 
-  if (insErr) return json({ error: 'insert_failed', detail: insErr.message }, 500);
+  if (insErr) {
+    console.error('insert failed', insErr.message);
+    return json({ error: 'insert_failed' }, 500);
+  }
 
   return json(inserted);
 });

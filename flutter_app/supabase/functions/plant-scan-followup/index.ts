@@ -1,6 +1,7 @@
 // Follow-up Q&A about a single existing plant scan. Stateless beyond the
-// current request — the client resends the scan_id each time, no server-side
-// conversation memory for this first pass.
+// current request: the client resends the scan_id each time.
+// The AI key is read from the GEMINI_API_KEY secret. When it is missing the
+// function answers `no_api_key` so the app can say so.
 //
 // Body: { "scan_id": "<uuid>", "question": "<text>" }
 
@@ -20,6 +21,11 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'content-type': 'application/json' },
   });
+}
+
+function keyWasRejected(status: number, detail: string): boolean {
+  return status === 401 || status === 403 ||
+    (status === 400 && detail.includes('API_KEY_INVALID'));
 }
 
 serve(async (req) => {
@@ -52,11 +58,14 @@ serve(async (req) => {
     .select('analysis')
     .eq('id', scanId)
     .maybeSingle();
-  if (scanErr) return json({ error: 'lookup_failed', detail: scanErr.message }, 500);
+  if (scanErr) {
+    console.error('scan lookup failed', scanErr.message);
+    return json({ error: 'lookup_failed' }, 500);
+  }
   if (!scan) return json({ error: 'scan_not_found' }, 404);
 
-  const geminiKey = Deno.env.get('GEMINI_API_KEY');
-  if (!geminiKey) return json({ error: 'server_misconfigured' }, 500);
+  const aiKey = Deno.env.get('GEMINI_API_KEY');
+  if (!aiKey) return json({ error: 'no_api_key' }, 503);
 
   const prompt = `A farmer previously got this plant health report:\n\n${JSON.stringify(scan.analysis)}\n\n` +
     `They're now asking a follow-up question about this same scan: "${question}"\n\n` +
@@ -67,10 +76,10 @@ serve(async (req) => {
   let aiRes: Response;
   try {
     aiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': aiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { temperature: 0.3, maxOutputTokens: 600 },
@@ -78,12 +87,17 @@ serve(async (req) => {
       }
     );
   } catch (e) {
-    return json({ error: 'gemini_unreachable', detail: String(e) }, 502);
+    console.error('AI service unreachable', String(e));
+    return json({ error: 'ai_unreachable' }, 502);
   }
 
   if (!aiRes.ok) {
     const detail = await aiRes.text();
-    return json({ error: 'gemini_error', detail }, 502);
+    console.error('AI service error', aiRes.status, detail);
+    return json(
+      { error: keyWasRejected(aiRes.status, detail) ? 'ai_key_rejected' : 'ai_error' },
+      502
+    );
   }
 
   const aiData = await aiRes.json();

@@ -10,7 +10,7 @@ class PlantScanResultScreen extends StatefulWidget {
     super.key,
     required String this.farmId,
     required String this.storagePath,
-  })  : existingScan = null;
+  }) : existingScan = null;
 
   const PlantScanResultScreen.existing({super.key, required PlantScan scan})
       : existingScan = scan,
@@ -73,7 +73,8 @@ class _PlantScanResultScreenState extends State<PlantScanResultScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Couldn\'t analyze this photo: ${snapshot.error}'),
+                    Text(plantScanErrorMessage(snapshot.error!),
+                        textAlign: TextAlign.center),
                     const SizedBox(height: 12),
                     ElevatedButton(
                         onPressed: _retry, child: const Text('Try again')),
@@ -271,7 +272,7 @@ class _Disclaimer extends StatelessWidget {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'This is an AI estimate, not a substitute for expert diagnosis. '
+              'This is an AI estimate, not a confirmed diagnosis. '
               'For serious or persistent problems, consult a local agricultural expert.',
               style: TextStyle(fontSize: 12),
             ),
