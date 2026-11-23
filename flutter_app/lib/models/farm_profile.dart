@@ -9,12 +9,9 @@ class FarmProfile {
   final DateTime plantationDate;
   final String soilType;
   final String irrigationSystem;
-  final String? locationLabel;
   final String? stateProvince;
   final String? district;
   final String? municipality;
-  final double? latitude;
-  final double? longitude;
 
   FarmProfile({
     required this.id,
@@ -27,12 +24,9 @@ class FarmProfile {
     required this.plantationDate,
     required this.soilType,
     required this.irrigationSystem,
-    this.locationLabel,
     this.stateProvince,
     this.district,
     this.municipality,
-    this.latitude,
-    this.longitude,
   });
 
   factory FarmProfile.fromMap(Map<String, dynamic> row) => FarmProfile(
@@ -46,12 +40,9 @@ class FarmProfile {
         plantationDate: DateTime.parse(row['plantation_date'] as String),
         soilType: row['soil_type'] as String,
         irrigationSystem: row['irrigation_system'] as String,
-        locationLabel: row['location_label'] as String?,
         stateProvince: row['state_province'] as String?,
         district: row['district'] as String?,
         municipality: row['municipality'] as String?,
-        latitude: (row['latitude'] as num?)?.toDouble(),
-        longitude: (row['longitude'] as num?)?.toDouble(),
       );
 
   Map<String, dynamic> toInsert(String userId) => {
@@ -64,40 +55,25 @@ class FarmProfile {
         'plantation_date': plantationDate.toIso8601String().substring(0, 10),
         'soil_type': soilType,
         'irrigation_system': irrigationSystem,
-        'location_label': locationLabel,
         'state_province': stateProvince,
         'district': district,
         'municipality': municipality,
-        'latitude': latitude,
-        'longitude': longitude,
       };
-}
 
-class ScheduleItem {
-  final String id;
-  final String farmId;
-  final String kind;
-  final String title;
-  final DateTime dueDate;
-  final String status;
+  /// Land size in the unit the user entered, for example "2 bigha".
+  String get landSizeLabel {
+    final value = landSizeValue ?? landSizeHectares;
+    final unit = landSizeValue == null ? 'hectare' : landUnit;
+    final text =
+        value == value.roundToDouble() ? value.toInt().toString() : '$value';
+    return '$text $unit';
+  }
 
-  ScheduleItem({
-    required this.id,
-    required this.farmId,
-    required this.kind,
-    required this.title,
-    required this.dueDate,
-    required this.status,
-  });
-
-  factory ScheduleItem.fromMap(Map<String, dynamic> row) => ScheduleItem(
-        id: row['id'] as String,
-        farmId: row['farm_id'] as String,
-        kind: row['kind'] as String,
-        title: row['title'] as String,
-        dueDate: DateTime.parse(row['due_date'] as String),
-        status: row['status'] as String,
-      );
+  /// Municipality, district and state in one line. Empty when none is set.
+  String get locationSummary => [municipality, district, stateProvince]
+      .whereType<String>()
+      .where((part) => part.isNotEmpty)
+      .join(', ');
 }
 
 const cropTypes = [

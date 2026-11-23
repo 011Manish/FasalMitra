@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/farm_photo.dart';
 import '../models/farm_profile.dart';
 import '../services/farm_service.dart';
-import '../services/photo_service.dart';
 import 'farm_detail_screen.dart';
 import 'farm_edit_screen.dart';
 
@@ -18,7 +15,6 @@ class FarmsListScreen extends StatefulWidget {
 }
 
 class _FarmsListScreenState extends State<FarmsListScreen> {
-  late final _photos = PhotoService(Supabase.instance.client);
   late Future<List<FarmProfile>> _load;
 
   @override
@@ -28,15 +24,19 @@ class _FarmsListScreenState extends State<FarmsListScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _load = widget.service.listMine());
-    await _load;
+    final next = widget.service.listMine();
+    setState(() => _load = next);
+    try {
+      await next;
+    } catch (_) {
+      // Not rethrown: the FutureBuilder below shows the error state.
+    }
   }
 
-  Future<void> _openEditor([FarmProfile? existing]) async {
+  Future<void> _openEditor() async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-          builder: (_) =>
-              FarmEditScreen(service: widget.service, existing: existing)),
+          builder: (_) => FarmEditScreen(service: widget.service)),
     );
     if (changed == true) _refresh();
   }
@@ -64,12 +64,19 @@ class _FarmsListScreenState extends State<FarmsListScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snap.hasError) {
-              return ListView(children: [
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text('Could not load farms: ${snap.error}'),
-                )
-              ]);
+              return ListView(
+                padding: const EdgeInsets.all(24),
+                children: [
+                  const SizedBox(height: 96),
+                  const Text('Could not load farms. Check your internet.',
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: FilledButton(
+                        onPressed: _refresh, child: const Text('Retry')),
+                  ),
+                ],
+              );
             }
             final farms = snap.data ?? [];
             if (farms.isEmpty) {
@@ -86,10 +93,10 @@ class _FarmsListScreenState extends State<FarmsListScreen> {
               itemBuilder: (_, i) {
                 final f = farms[i];
                 return ListTile(
-                  leading: _FarmThumbnail(farmId: f.id, photos: _photos),
+                  leading: const CircleAvatar(child: Icon(Icons.grass)),
                   title: Text(f.name),
                   subtitle: Text(
-                    '${f.cropType} — ${f.landSizeHectares} ha — planted ${df.format(f.plantationDate)}',
+                    '${f.cropType} — ${f.landSizeLabel} — planted ${df.format(f.plantationDate)}',
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _openDetail(f),
@@ -101,54 +108,10 @@ class _FarmsListScreenState extends State<FarmsListScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'addFarmButton',
-        onPressed: () => _openEditor(),
+        onPressed: _openEditor,
+        tooltip: 'Add farm',
         child: const Icon(Icons.add),
       ),
-    );
-  }
-}
-
-class _FarmThumbnail extends StatefulWidget {
-  const _FarmThumbnail({required this.farmId, required this.photos});
-  final String farmId;
-  final PhotoService photos;
-
-  @override
-  State<_FarmThumbnail> createState() => _FarmThumbnailState();
-}
-
-class _FarmThumbnailState extends State<_FarmThumbnail> {
-  late final Future<FarmPhoto?> _latest = _load();
-
-  Future<FarmPhoto?> _load() async {
-    final photos = await widget.photos.listForFarm(widget.farmId);
-    return photos.isEmpty ? null : photos.first;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<FarmPhoto?>(
-      future: _latest,
-      builder: (context, snap) {
-        final photo = snap.data;
-        if (photo == null) {
-          return const CircleAvatar(
-            radius: 24,
-            backgroundColor: Color(0x11000000),
-            child: Icon(Icons.grass, size: 20),
-          );
-        }
-        return FutureBuilder<String>(
-          future: widget.photos.signedUrl(photo.storagePath),
-          builder: (context, urlSnap) {
-            if (!urlSnap.hasData) {
-              return const CircleAvatar(radius: 24);
-            }
-            return CircleAvatar(
-                radius: 24, backgroundImage: NetworkImage(urlSnap.data!));
-          },
-        );
-      },
     );
   }
 }
