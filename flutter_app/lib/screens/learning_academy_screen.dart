@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/learning_content.dart';
 import '../services/learning_service.dart';
+import '../services/link_launcher.dart';
+import 'video_player_screen.dart';
 
 class LearningAcademyScreen extends StatelessWidget {
   const LearningAcademyScreen({super.key});
@@ -38,6 +40,18 @@ class LearningAcademyScreen extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class VideoTutorialsScreen extends StatelessWidget {
+  const VideoTutorialsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _CategoryListScreen(
+      contentType: videoContentType,
+      label: 'Tutorials',
     );
   }
 }
@@ -106,6 +120,8 @@ class _CategoryListScreenState extends State<_CategoryListScreen> {
     await _load;
   }
 
+  void _retry() => setState(() => _load = _fetch());
+
   void _pickCategory(String? value) {
     setState(() {
       _category = value;
@@ -118,6 +134,35 @@ class _CategoryListScreenState extends State<_CategoryListScreen> {
       _language = value;
       _load = _fetch();
     });
+  }
+
+  Future<void> _open(LearningContent item) async {
+    if (item.contentType != videoContentType) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => _ContentDetailScreen(item: item)),
+      );
+      return;
+    }
+    final uri = parseHttpsUrl(item.externalUrl);
+    if (uri == null) return;
+    final videoId = youtubeVideoId(uri);
+    if (videoId != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => VideoPlayerScreen(
+            videoId: videoId,
+            title: item.title,
+            sourceUri: uri,
+          ),
+        ),
+      );
+      return;
+    }
+    final opened = await openExternally(uri);
+    if (!mounted || opened) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not open the video link.')),
+    );
   }
 
   Widget _chipRow({
@@ -180,12 +225,7 @@ class _CategoryListScreenState extends State<_CategoryListScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snap.hasError) {
-                    return ListView(children: [
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text('Could not load: ${snap.error}'),
-                      )
-                    ]);
+                    return _LoadError(onRetry: _retry);
                   }
                   final items = snap.data ?? [];
                   if (items.isEmpty) {
@@ -199,22 +239,7 @@ class _CategoryListScreenState extends State<_CategoryListScreen> {
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final it = items[i];
-                      return ListTile(
-                        title: Text(it.title),
-                        subtitle: Text(it.summary),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _LanguageBadge(code: it.language),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.chevron_right),
-                          ],
-                        ),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => _ContentDetailScreen(item: it)),
-                        ),
-                      );
+                      return _ContentCard(item: it, onTap: () => _open(it));
                     },
                   );
                 },
@@ -222,6 +247,122 @@ class _CategoryListScreenState extends State<_CategoryListScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LoadError extends StatelessWidget {
+  const _LoadError({required this.onRetry});
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SizedBox(height: 96),
+        const Text(
+          'Could not load. Check your internet.',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: FilledButton(onPressed: onRetry, child: const Text('Retry')),
+        ),
+      ],
+    );
+  }
+}
+
+class _ContentCard extends StatelessWidget {
+  const _ContentCard({required this.item, required this.onTap});
+  final LearningContent item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final noLink = item.contentType == videoContentType &&
+        parseHttpsUrl(item.externalUrl) == null;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Thumbnail(
+              url: item.thumbnailUrl ??
+                  (item.contentType == videoContentType
+                      ? youtubeThumbnailUrl(item.externalUrl)
+                      : null),
+            ),
+            const SizedBox(height: 8),
+            Text(item.title, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              item.summary,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    learningCategoryLabels[item.category] ?? item.category,
+                    style: theme.textTheme.labelMedium?.copyWith(color: muted),
+                  ),
+                ),
+                _LanguageBadge(code: item.language),
+              ],
+            ),
+            if (noLink) ...[
+              const SizedBox(height: 4),
+              Text(
+                'No link available',
+                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Thumbnail extends StatelessWidget {
+  const _Thumbnail({required this.url});
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final uri = parseHttpsUrl(url);
+    final fallback = Center(
+      child:
+          Icon(Icons.image_outlined, size: 40, color: scheme.onSurfaceVariant),
+    );
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: ColoredBox(
+          color: scheme.surfaceContainerHighest,
+          child: uri == null
+              ? fallback
+              : Image.network(
+                  uri.toString(),
+                  fit: BoxFit.cover,
+                  loadingBuilder: (_, child, progress) => progress == null
+                      ? child
+                      : const Center(child: CircularProgressIndicator()),
+                  errorBuilder: (_, __, ___) => fallback,
+                ),
+        ),
       ),
     );
   }

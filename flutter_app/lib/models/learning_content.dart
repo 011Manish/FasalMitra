@@ -36,6 +36,8 @@ class LearningContent {
 
 const learningContentTypes = ['course', 'video', 'ebook', 'success_story'];
 
+const videoContentType = 'video';
+
 /// Order matters: this is the order of the filter chips.
 const learningCategoryLabels = <String, String>{
   'general': 'General',

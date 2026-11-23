@@ -27,6 +27,15 @@ class HomeGridScreen extends StatelessWidget {
           ),
         ),
         _HomeTile(
+          icon: Icons.ondemand_video_outlined,
+          label: 'Tutorials',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const VideoTutorialsScreen(),
+            ),
+          ),
+        ),
+        _HomeTile(
           icon: Icons.location_on_outlined,
           label: 'Nearby Agriculture',
           onTap: () => Navigator.of(context).push(
