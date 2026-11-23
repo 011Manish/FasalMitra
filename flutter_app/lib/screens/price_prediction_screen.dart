@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/price_trend.dart';
 import '../services/price_prediction_service.dart';
+import 'market_prices_screen.dart';
 
 class PricePredictionScreen extends StatefulWidget {
   const PricePredictionScreen({super.key});
@@ -41,7 +42,20 @@ class _PricePredictionScreenState extends State<PricePredictionScreen> {
         NumberFormat.currency(locale: 'en_IN', symbol: 'Rs ', decimalDigits: 1);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Price prediction')),
+      appBar: AppBar(
+        title: const Text('Price prediction'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.table_rows_outlined),
+            tooltip: 'Price list',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const MarketPricesScreen(),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: FutureBuilder<List<String>>(
         future: _crops,
         builder: (context, cropsSnap) {
