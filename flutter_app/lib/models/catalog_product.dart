@@ -48,3 +48,17 @@ class CatalogProduct {
         isDemo: (m['is_demo'] as bool?) ?? false,
       );
 }
+
+/// Order matters: this is the order of the filter chips.
+const catalogCategoryLabels = <String, String>{
+  'seed': 'Seeds',
+  'fertilizer': 'Fertilizers',
+  'tool': 'Tools',
+  'irrigation': 'Irrigation',
+};
+
+const catalogAvailabilityLabels = <String, String>{
+  'in_stock': 'In stock',
+  'limited': 'Limited',
+  'out_of_stock': 'Out of stock',
+};

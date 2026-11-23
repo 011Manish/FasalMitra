@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../models/catalog_product.dart';
 import '../services/catalog_service.dart';
+import 'product_detail_screen.dart';
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key});
@@ -14,8 +16,6 @@ class _ShopScreenState extends State<ShopScreen> {
   String? _category;
   late Future<List<CatalogProduct>> _future;
 
-  static const _categories = ['seed', 'fertilizer', 'tool', 'irrigation'];
-
   @override
   void initState() {
     super.initState();
@@ -24,41 +24,12 @@ class _ShopScreenState extends State<ShopScreen> {
 
   void _load() => _future = _service.fetchProducts(category: _category);
 
-  Future<void> _enquire(CatalogProduct p) async {
-    final ctrl = TextEditingController();
-    final msg = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text('Enquire: ${p.name}'),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(hintText: 'Your message'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(c, ctrl.text.trim()),
-            child: const Text('Send'),
-          ),
-        ],
+  void _openDetail(CatalogProduct p) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProductDetailScreen(product: p, service: _service),
       ),
     );
-    if (msg == null || msg.isEmpty) return;
-    try {
-      await _service.sendEnquiry(productId: p.id, message: msg);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Enquiry sent')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed: $e')));
-      }
-    }
   }
 
   @override
@@ -73,11 +44,13 @@ class _ShopScreenState extends State<ShopScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               children: [
-                for (final c in [null, ..._categories])
+                for (final c in [null, ...catalogCategoryLabels.keys])
                   Padding(
                     padding: const EdgeInsets.all(4),
                     child: ChoiceChip(
-                      label: Text(c ?? 'all'),
+                      label: Text(
+                        c == null ? 'All' : catalogCategoryLabels[c] ?? c,
+                      ),
                       selected: _category == c,
                       onSelected: (_) => setState(() {
                         _category = c;
@@ -96,9 +69,9 @@ class _ShopScreenState extends State<ShopScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snap.hasError) {
-                  return Center(child: Text('Error: ${snap.error}'));
+                  return _LoadError(onRetry: () => setState(_load));
                 }
-                final items = snap.data!;
+                final items = snap.data ?? [];
                 if (items.isEmpty) {
                   return const Center(child: Text('No products yet'));
                 }
@@ -107,23 +80,48 @@ class _ShopScreenState extends State<ShopScreen> {
                   itemBuilder: (context, i) {
                     final p = items[i];
                     return ListTile(
+                      leading: SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: ProductImage(url: p.imageUrl),
+                        ),
+                      ),
                       title: Text(p.name),
                       subtitle: Text(
                         '${p.indicativePrice ?? '-'} ${p.currency} ${p.unit ?? ''}'
-                        '${p.isDemo ? '  •  DEMO' : ''}\n'
+                        '${p.isDemo ? '  \u2022  DEMO' : ''}\n'
                         '${p.sellerName ?? ''} ${p.sellerPhone ?? ''}',
                       ),
                       isThreeLine: true,
-                      trailing: TextButton(
-                        onPressed: () => _enquire(p),
-                        child: const Text('Enquire'),
-                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _openDetail(p),
                     );
                   },
                 );
               },
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadError extends StatelessWidget {
+  const _LoadError({required this.onRetry});
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Could not load. Check your internet.'),
+          const SizedBox(height: 16),
+          FilledButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );
