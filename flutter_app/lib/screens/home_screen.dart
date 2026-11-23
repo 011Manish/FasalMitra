@@ -9,6 +9,7 @@ import 'home_grid_screen.dart';
 import 'marketplace_screen.dart';
 import 'notifications_screen.dart';
 import 'profile_screen.dart';
+import 'support_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -82,12 +83,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           builder: (_) => const ProfileScreen(),
                         ),
                       );
+                    } else if (v == 'support') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SupportScreen(),
+                        ),
+                      );
                     }
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem(
                       value: 'profile',
                       child: Text('Profile'),
+                    ),
+                    PopupMenuItem(
+                      value: 'support',
+                      child: Text('Support'),
                     ),
                     PopupMenuItem(
                       value: 'signout',
