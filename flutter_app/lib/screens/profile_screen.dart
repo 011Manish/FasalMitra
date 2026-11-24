@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_profile.dart';
 import '../services/profile_service.dart';
+import '../services/profile_validators.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,15 +13,13 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static final _phoneRe = RegExp(r'^\+?[0-9]{7,15}$');
-
   final _service = ProfileService(Supabase.instance.client);
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _phone = TextEditingController();
 
   UserProfile? _profile;
-  String? _loadError;
+  bool _loadFailed = false;
   String? _country;
   String _language = 'en';
   String _role = 'farmer';
@@ -40,6 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
+    setState(() => _loadFailed = false);
     try {
       final p = await _service.fetch();
       if (!mounted) return;
@@ -51,8 +51,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _language = p.preferredLanguage;
         _role = p.role;
       });
-    } catch (e) {
-      if (mounted) setState(() => _loadError = '$e');
+    } catch (_) {
+      if (mounted) setState(() => _loadFailed = true);
     }
   }
 
@@ -69,8 +69,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         role: _role,
       ));
       _snack('Profile saved');
-    } catch (e) {
-      _snack('Save failed: $e');
+    } catch (_) {
+      _snack('Could not save your profile. Check your internet and try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -93,12 +93,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _body() {
-    if (_loadError != null) {
-      return Center(child: Text('Could not load profile: $_loadError'));
+    if (_loadFailed) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Could not load your profile. Check your internet.',
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _loadProfile,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     final profile = _profile;
-    if (profile == null)
+    if (profile == null) {
       return const Center(child: CircularProgressIndicator());
+    }
 
     return Form(
       key: _form,
@@ -123,11 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             keyboardType: TextInputType.phone,
             decoration: const InputDecoration(
                 labelText: 'Phone (optional, with country code)'),
-            validator: (v) {
-              final phone = v?.trim() ?? '';
-              if (phone.isEmpty || _phoneRe.hasMatch(phone)) return null;
-              return 'Enter a valid phone number, e.g. +9779812345678';
-            },
+            validator: (v) => optionalPhoneError(v ?? ''),
           ),
           const SizedBox(height: 12),
           _dropdown(

@@ -16,7 +16,14 @@ class ProfileService {
     return UserProfile.fromMap(row);
   }
 
+  /// Throws when no row was updated, so the screen never reports a save that
+  /// did not happen.
   Future<void> save(UserProfile profile) async {
-    await _sb.from('profiles').update(profile.toUpdate()).eq('id', _user.id);
+    await _sb
+        .from('profiles')
+        .update(profile.toUpdate())
+        .eq('id', _user.id)
+        .select()
+        .single();
   }
 }

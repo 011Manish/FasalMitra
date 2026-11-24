@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config/auth_options.dart';
+import '../services/profile_validators.dart';
+
 enum _EmailMode { signIn, signUp, forgot }
 
 class LoginScreen extends StatefulWidget {
@@ -11,19 +14,18 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static final _phoneRe = RegExp(r'^\+?[0-9]{7,15}$');
-  static const _phoneHint = 'Enter a valid phone number, e.g. +9779812345678';
   static const _gap = SizedBox(height: 12);
 
   final _phoneCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _signUpPhoneCtrl = TextEditingController();
 
   bool _busy = false;
   bool _codeSent = false;
-  bool _useEmail = false;
+  bool _useEmail = !AuthOptions.phoneLogin;
   _EmailMode _mode = _EmailMode.signIn;
   String _role = 'farmer'; // database accepts: farmer, buyer
   String _country = 'NP'; // database accepts: NP, IN
@@ -37,6 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _codeCtrl,
       _emailCtrl,
       _passwordCtrl,
+      _nameCtrl,
       _signUpPhoneCtrl,
     ]) {
       c.dispose();
@@ -46,13 +49,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ---------- Actions ----------
 
-  /// Runs [action] with the busy flag set and shows any auth error.
+  /// Runs [action] with the busy flag set and shows a plain message on failure.
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
     try {
       await action();
     } on AuthException catch (e) {
       _snack(e.message);
+    } catch (_) {
+      _snack('Could not connect. Check your internet and try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -73,8 +78,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _sendOtp() {
     final phone = _phoneCtrl.text.trim();
-    if (!_phoneRe.hasMatch(phone)) {
-      _snack(_phoneHint);
+    final error = phoneError(phone);
+    if (error != null) {
+      _snack(error);
       return;
     }
     _run(() async {
@@ -113,15 +119,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _signUp() {
+    final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final phone = _signUpPhoneCtrl.text.trim();
-    if (email.isEmpty || password.length < 8) {
-      _snack('Email + password (min 8 chars) required');
-      return;
-    }
-    if (phone.isNotEmpty && !_phoneRe.hasMatch(phone)) {
-      _snack(_phoneHint);
+    final error = nameError(name) ??
+        emailError(email) ??
+        passwordError(password) ??
+        optionalPhoneError(phone);
+    if (error != null) {
+      _snack(error);
       return;
     }
     _run(() async {
@@ -129,6 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: email,
         password: password,
         data: {
+          'full_name': name,
           'role': _role,
           'country': _country,
           if (phone.isNotEmpty) 'phone': phone,
@@ -190,13 +198,15 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(_subtitle),
               const SizedBox(height: 24),
               ..._useEmail ? _emailFlow() : _phoneFlow(),
-              _gap,
-              _link(
-                _useEmail
-                    ? 'Use phone number instead'
-                    : 'Use email + password instead',
-                _toggleMethod,
-              ),
+              if (AuthOptions.phoneLogin) ...[
+                _gap,
+                _link(
+                  _useEmail
+                      ? 'Use phone number instead'
+                      : 'Use email + password instead',
+                  _toggleMethod,
+                ),
+              ],
             ],
           ),
         ),
@@ -286,6 +296,8 @@ class _LoginScreenState extends State<LoginScreen> {
           _link('Forgot password?', () => _setMode(_EmailMode.forgot)),
         ],
       _EmailMode.signUp => [
+          _field(_nameCtrl, 'Full name'),
+          _gap,
           email,
           _gap,
           _field(_passwordCtrl, 'Password (min 8 characters)', obscure: true),
