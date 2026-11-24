@@ -4,7 +4,13 @@ import '../models/marketplace_listing.dart';
 import '../services/marketplace_service.dart';
 import 'create_listing_screen.dart';
 import 'listing_detail_screen.dart';
+import 'listing_enquiries_section.dart';
 import 'my_listings_screen.dart';
+
+typedef _BrowseResult = ({
+  List<MarketplaceListing> listings,
+  Map<String, String> thumbs,
+});
 
 class MarketplaceScreen extends StatefulWidget {
   const MarketplaceScreen({super.key, required this.service});
@@ -16,8 +22,10 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
   final _searchCtrl = TextEditingController();
+  final _districtCtrl = TextEditingController();
   String _search = '';
-  late Future<List<MarketplaceListing>> _load = widget.service.browse();
+  String _district = '';
+  late Future<_BrowseResult> _load = _fetch();
 
   String? _role;
 
@@ -26,43 +34,70 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   @override
   void initState() {
     super.initState();
-    widget.service.myRole().then((r) {
-      if (mounted) setState(() => _role = r);
-    }).catchError((_) {});
+    _loadRole();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _districtCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _refresh() async {
-    setState(() => _load = widget.service.browse(search: _search));
-    await _load;
+  Future<void> _loadRole() async {
+    try {
+      final role = await widget.service.myRole();
+      if (mounted) setState(() => _role = role);
+    } catch (_) {
+      // The server enforces the role; without it the + button skips the pre-check.
+    }
   }
 
-  void _runSearch(String value) {
-    _search = value.trim();
-    setState(() => _load = widget.service.browse(search: _search));
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<_BrowseResult> _fetch() async {
+    final listings =
+        await widget.service.browse(search: _search, district: _district);
+    final thumbs =
+        await widget.service.thumbnailUrls([for (final l in listings) l.id]);
+    return (listings: listings, thumbs: thumbs);
+  }
+
+  void _apply() {
+    _search = _searchCtrl.text.trim();
+    _district = _districtCtrl.text.trim();
+    setState(() => _load = _fetch());
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _load = _fetch());
+    // The list itself shows a failure; this only ends the refresh spinner.
+    await _load.then<void>((_) {}, onError: (_) {});
   }
 
   Future<void> _openCreate() async {
+    if (_role != null && !_canSell) {
+      _snack(farmerOnlyMessage);
+      return;
+    }
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
           builder: (_) => CreateListingScreen(service: widget.service)),
     );
-    if (created == true) _refresh();
+    if (created == true && mounted) await _refresh();
   }
 
-  Future<void> _openDetail(MarketplaceListing listing) async {
-    final changed = await Navigator.of(context).push<bool>(
+  void _openDetail(MarketplaceListing listing) {
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             ListingDetailScreen(service: widget.service, listing: listing),
       ),
     );
-    if (changed == true) _refresh();
   }
 
   @override
@@ -85,33 +120,35 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: TextField(
-              controller: _searchCtrl,
-              textInputAction: TextInputAction.search,
-              onSubmitted: _runSearch,
-              decoration: InputDecoration(
-                hintText: 'Search crop or district',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchCtrl.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          _runSearch('');
-                        },
-                      ),
-                border: const OutlineInputBorder(),
-                isDense: true,
-              ),
-              onChanged: (_) => setState(() {}),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _FilterField(
+                    controller: _searchCtrl,
+                    hint: 'Search crop',
+                    icon: Icons.search,
+                    onApply: _apply,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: _FilterField(
+                    controller: _districtCtrl,
+                    hint: 'District',
+                    icon: Icons.place_outlined,
+                    onApply: _apply,
+                  ),
+                ),
+              ],
             ),
           ),
           const Divider(height: 1),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
-              child: FutureBuilder<List<MarketplaceListing>>(
+              child: FutureBuilder<_BrowseResult>(
                 future: _load,
                 builder: (context, snap) {
                   if (snap.connectionState != ConnectionState.done) {
@@ -119,46 +156,48 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   }
                   if (snap.hasError) {
                     return ListView(children: [
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text('Could not load listings: ${snap.error}'),
+                      RetryMessage(
+                        message: marketplaceErrorMessage(snap.error!,
+                            fallback: 'Could not load listings.'),
+                        onRetry: _refresh,
                       ),
                     ]);
                   }
-                  final listings = snap.data ?? [];
-                  if (listings.isEmpty) {
+                  final result = snap.data!;
+                  if (result.listings.isEmpty) {
                     return ListView(children: [
                       const SizedBox(height: 120),
                       Center(
                         child: Text(
-                          _search.isEmpty
-                              ? _canSell
+                          _search.isNotEmpty || _district.isNotEmpty
+                              ? 'No listings match your search.'
+                              : _canSell
                                   ? 'No listings yet.\nTap + to sell something.'
-                                  : 'No listings yet.'
-                              : 'No listings match "$_search".',
+                                  : 'No listings yet.',
                           textAlign: TextAlign.center,
                         ),
                       ),
                     ]);
                   }
+                  final priceStyle = Theme.of(context).textTheme.titleSmall;
                   return ListView.separated(
-                    itemCount: listings.length,
+                    itemCount: result.listings.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (_, i) {
-                      final l = listings[i];
+                      final l = result.listings[i];
                       return ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.grass)),
+                        leading: _Thumb(url: result.thumbs[l.id]),
                         title: Text(l.title),
                         subtitle: Text(
                           [
-                            '${l.quantity} ${l.unit}',
+                            l.quantityLabel,
                             if (l.locationText.isNotEmpty) l.locationText,
                           ].join(' • '),
                         ),
                         trailing: Text(
                           '${l.currency} ${l.price.toStringAsFixed(2)}\n/ ${l.unit}',
                           textAlign: TextAlign.right,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: priceStyle,
                         ),
                         onTap: () => _openDetail(l),
                       );
@@ -170,13 +209,82 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           ),
         ],
       ),
-      floatingActionButton: _canSell
-          ? FloatingActionButton(
-              onPressed: _openCreate,
-              tooltip: 'Sell produce',
-              child: const Icon(Icons.add),
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openCreate,
+        tooltip: 'Sell produce',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class _FilterField extends StatelessWidget {
+  const _FilterField({
+    required this.controller,
+    required this.hint,
+    required this.icon,
+    required this.onApply,
+  });
+  final TextEditingController controller;
+  final String hint;
+  final IconData icon;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) => TextField(
+        controller: controller,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (_) => onApply(),
+        decoration: InputDecoration(
+          hintText: hint,
+          prefixIcon: Icon(icon),
+          suffixIcon: value.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    controller.clear();
+                    onApply();
+                  },
+                ),
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+}
+
+class _Thumb extends StatelessWidget {
+  const _Thumb({this.url});
+  final String? url;
+
+  static const _size = 56.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: const Icon(Icons.grass),
+    );
+    final u = url;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: u == null
+          ? fallback
+          : Image.network(
+              u,
+              width: _size,
+              height: _size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => fallback,
+            ),
     );
   }
 }

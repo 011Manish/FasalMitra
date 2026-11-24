@@ -1,3 +1,50 @@
+const listingCurrencies = ['NPR', 'INR'];
+const maxEnquiryLength = 1000;
+const _photoExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+
+abstract final class ListingStatus {
+  static const active = 'active';
+  static const sold = 'sold';
+  static const cancelled = 'cancelled';
+}
+
+abstract final class EnquiryStatus {
+  static const received = 'new';
+  static const contacted = 'contacted';
+  static const closed = 'closed';
+}
+
+String formatNumber(double value) => value == value.roundToDouble()
+    ? value.toStringAsFixed(0)
+    : value.toString();
+
+String? validateRequired(String? value) =>
+    (value == null || value.trim().isEmpty) ? 'Required' : null;
+
+String? validatePositiveNumber(String? value) {
+  final n = double.tryParse(value?.trim() ?? '');
+  return (n == null || !n.isFinite || n <= 0)
+      ? 'Enter a positive number'
+      : null;
+}
+
+String? validateEnquiryMessage(String? value) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty) return 'Write a short message to the seller.';
+  if (text.length > maxEnquiryLength) {
+    return 'Keep the message under $maxEnquiryLength characters.';
+  }
+  return null;
+}
+
+/// Lower-case extension if the bucket accepts it, otherwise null.
+String? photoExtension(String path) {
+  final dot = path.lastIndexOf('.');
+  if (dot == -1) return null;
+  final ext = path.substring(dot).toLowerCase();
+  return _photoExtensions.contains(ext) ? ext : null;
+}
+
 class MarketplaceListing {
   MarketplaceListing({
     required this.id,
@@ -9,7 +56,7 @@ class MarketplaceListing {
     required this.quantity,
     required this.price,
     this.currency = 'NPR',
-    this.status = 'active',
+    this.status = ListingStatus.active,
     required this.createdAt,
     this.stateProvince,
     this.district,
@@ -35,12 +82,24 @@ class MarketplaceListing {
   final DateTime? availableFrom;
   final bool isHidden;
 
-  bool get isActive => status == 'active';
+  bool get isActive => status == ListingStatus.active;
+
+  String get statusLabel => switch (status) {
+        ListingStatus.active => 'Available',
+        ListingStatus.sold => 'Sold',
+        ListingStatus.cancelled => 'Removed',
+        _ => status,
+      };
+
+  String get quantityLabel => '${formatNumber(quantity)} $unit';
 
   String get locationText => [municipality, district, stateProvince]
       .whereType<String>()
       .where((s) => s.trim().isNotEmpty)
       .join(', ');
+
+  String? get _availableFromDate =>
+      availableFrom?.toIso8601String().substring(0, 10);
 
   factory MarketplaceListing.fromMap(Map<String, dynamic> row) =>
       MarketplaceListing(
@@ -67,6 +126,11 @@ class MarketplaceListing {
   Map<String, dynamic> toInsert(String sellerId) => {
         'seller_id': sellerId,
         'farm_id': farmId,
+        ...toUpdate(),
+      };
+
+  /// Only the columns a seller edits; status and visibility are changed elsewhere.
+  Map<String, dynamic> toUpdate() => {
         'title': title,
         'description': description,
         'unit': unit,
@@ -76,7 +140,7 @@ class MarketplaceListing {
         'state_province': stateProvince,
         'district': district,
         'municipality': municipality,
-        'available_from': availableFrom?.toIso8601String().substring(0, 10),
+        'available_from': _availableFromDate,
       };
 }
 
@@ -118,6 +182,13 @@ class ListingEnquiry {
   final String? contactPhone;
   final String status;
   final DateTime createdAt;
+
+  String get statusLabel => switch (status) {
+        EnquiryStatus.received => 'New',
+        EnquiryStatus.contacted => 'Contacted',
+        EnquiryStatus.closed => 'Closed',
+        _ => status,
+      };
 
   factory ListingEnquiry.fromMap(Map<String, dynamic> row) => ListingEnquiry(
         id: row['id'] as String,
