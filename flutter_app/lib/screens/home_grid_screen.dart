@@ -18,15 +18,6 @@ class HomeGridScreen extends StatelessWidget {
       crossAxisSpacing: 12,
       children: [
         _HomeTile(
-          icon: Icons.school_outlined,
-          label: 'Learning Academy',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const LearningAcademyScreen(),
-            ),
-          ),
-        ),
-        _HomeTile(
           icon: Icons.ondemand_video_outlined,
           label: 'Tutorials',
           onTap: () => Navigator.of(context).push(
