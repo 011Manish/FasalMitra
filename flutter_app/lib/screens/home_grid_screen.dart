@@ -8,7 +8,6 @@ import '../services/link_launcher.dart';
 import 'crop_guide_screen.dart';
 import 'learning_academy_screen.dart';
 import 'market_prices_screen.dart';
-import 'nearby_agriculture_screen.dart';
 import 'price_prediction_screen.dart';
 import 'shop_screen.dart';
 
@@ -76,15 +75,6 @@ class _HomeGridScreenState extends State<HomeGridScreen> {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const VideoTutorialsScreen(),
-                ),
-              ),
-            ),
-            _HomeTile(
-              icon: Icons.location_on_outlined,
-              label: 'Nearby Agriculture',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const NearbyAgricultureScreen(),
                 ),
               ),
             ),
