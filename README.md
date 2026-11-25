@@ -23,7 +23,6 @@ README.md
 docs/                  Handover notes, architecture, third-party services, licences, tutorial guide
 supabase/
   migrations/          All database SQL, in filename order
-  skipped_migrations/  SQL of features that were dropped. Not applied.
 flutter_app/           The Flutter app. Run Flutter commands here.
   lib/                 config, models, screens, services
   supabase/functions/  Edge Functions (Deno, TypeScript)
