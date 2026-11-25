@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>FasalMitra Dashboard</title>
+  <title>FasalMitra Admin</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
     <h1>FasalMitra Admin</h1>
-    <div id="who"></div>
+    <div class="session">
+      <span id="who"></span>
+      <button id="signout-btn" hidden>Sign out</button>
+    </div>
   </header>
 
   <main>
@@ -20,26 +23,37 @@
         <label>Password <input type="password" name="password" required minlength="8" /></label>
         <button type="submit">Sign in</button>
       </form>
-      <p class="hint">
-        This dashboard is for staff accounts. Farmers should use the mobile app.
-      </p>
+      <p id="auth-message" class="error"></p>
+      <p class="hint">Staff accounts only. Farmers and buyers use the mobile app.</p>
     </section>
 
     <section id="dashboard" hidden>
-      <h2>Your farm profiles (this signed-in user only)</h2>
-      <p class="hint">
-        Because RLS is enabled, even the admin dashboard only sees what the
-        signed-in user is allowed to see. To view other users' data, you'll
-        need a service-role backend — deliberately out of scope for the
-        static dashboard.
-      </p>
-      <table id="farms-table">
-        <thead><tr><th>Name</th><th>Crop</th><th>Size (ha)</th><th>Planted</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <button id="signout-btn">Sign out</button>
+      <nav id="tabs"></nav>
+      <div class="toolbar">
+        <h2 id="view-title"></h2>
+        <button id="add-btn" hidden>Add new</button>
+      </div>
+      <p id="status" class="hint"></p>
+      <div class="table-wrap">
+        <table id="data-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
   </main>
+
+  <dialog id="editor">
+    <form id="editor-form">
+      <h3 id="editor-title"></h3>
+      <div id="editor-fields"></div>
+      <p id="editor-error" class="error"></p>
+      <div class="actions">
+        <button type="button" id="cancel-btn">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="config.js"></script>
   <script type="module" src="app.js"></script>
