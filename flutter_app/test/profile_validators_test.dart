@@ -1,4 +1,4 @@
-import 'package:agrismart_ai/services/profile_validators.dart';
+import 'package:fasalmitra/services/profile_validators.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

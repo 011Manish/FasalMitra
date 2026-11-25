@@ -18,7 +18,7 @@ Future<void> main() async {
       publishableKey: dotenv.env['SUPABASE_ANON_KEY']!,
     ).timeout(const Duration(seconds: 15));
 
-    runApp(const KrishiApp());
+    runApp(const FasalMitraApp());
   } catch (e, st) {
     debugPrint('STARTUP ERROR: $e\n$st');
     runApp(MaterialApp(
@@ -34,13 +34,13 @@ Future<void> main() async {
   }
 }
 
-class KrishiApp extends StatelessWidget {
-  const KrishiApp({super.key});
+class FasalMitraApp extends StatelessWidget {
+  const FasalMitraApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FASALMITRA',
+      title: 'FasalMitra',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
         useMaterial3: true,

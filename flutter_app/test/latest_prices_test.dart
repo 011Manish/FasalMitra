@@ -1,5 +1,5 @@
-import 'package:agrismart_ai/models/crop_price_point.dart';
-import 'package:agrismart_ai/services/price_prediction_service.dart';
+import 'package:fasalmitra/models/crop_price_point.dart';
+import 'package:fasalmitra/services/price_prediction_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CropPricePoint _point({

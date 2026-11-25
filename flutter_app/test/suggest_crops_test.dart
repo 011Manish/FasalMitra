@@ -1,4 +1,4 @@
-import 'package:agrismart_ai/models/crop_info.dart';
+import 'package:fasalmitra/models/crop_info.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CropInfo _crop({

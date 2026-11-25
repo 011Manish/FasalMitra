@@ -1,5 +1,5 @@
-import 'package:agrismart_ai/models/learning_content.dart';
-import 'package:agrismart_ai/services/home_content_service.dart';
+import 'package:fasalmitra/models/learning_content.dart';
+import 'package:fasalmitra/services/home_content_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 LearningContent _item(
