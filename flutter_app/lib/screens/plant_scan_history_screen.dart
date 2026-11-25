@@ -37,10 +37,18 @@ class _PlantScanHistoryScreenState extends State<PlantScanHistoryScreen> {
             itemCount: scans.length,
             itemBuilder: (context, i) {
               final scan = scans[i];
-              final score = scan.analysis['health_score'] as int? ?? 0;
+              final score = scan.analysis['health_score'];
               return ListTile(
-                leading: CircleAvatar(child: Text('$score')),
-                title: Text((scan.analysis['summary'] ?? 'Scan').toString()),
+                leading: CircleAvatar(
+                  child: score is num
+                      ? Text('${score.round()}')
+                      : const Icon(Icons.search),
+                ),
+                title: Text(
+                  (scan.analysis['summary'] ?? 'Scan').toString(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 subtitle: Text(scan.createdAt.toLocal().toString()),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(

@@ -17,10 +17,14 @@ class PlantScanFailed implements Exception {
 String plantScanErrorMessage(Object error) {
   if (error is PlantScanFailed) {
     switch (error.reason) {
-      case 'no_api_key':
-        return 'No API key added yet.';
-      case 'ai_key_rejected':
-        return 'The API key is not valid. Add a working key.';
+      case 'server_misconfigured':
+        return 'AI Scan is not set up yet.';
+      case 'plantnet_rate_limited':
+        return 'The daily scan limit has been reached. Please try again tomorrow.';
+      case 'unsupported_image_type':
+        return 'This photo type is not supported. Use a JPG or PNG photo.';
+      case 'analysis_failed':
+        return 'The scan service did not respond. Please try again.';
     }
   }
   return 'Could not complete this request. Check your internet and try again.';

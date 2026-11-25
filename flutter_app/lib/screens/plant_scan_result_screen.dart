@@ -5,6 +5,9 @@ import '../models/plant_scan.dart';
 import '../services/plant_scan_service.dart';
 import 'plant_scan_followup_chat_screen.dart';
 
+String _capitalize(String s) =>
+    s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+
 class PlantScanResultScreen extends StatefulWidget {
   const PlantScanResultScreen.newScan({
     super.key,
@@ -59,7 +62,8 @@ class _PlantScanResultScreenState extends State<PlantScanResultScreen> {
                   children: [
                     CircularProgressIndicator(),
                     SizedBox(height: 16),
-                    Text('Analyzing your photo… this takes a few seconds.'),
+                    Text(
+                        'Analyzing your photo\u2026 this takes a few seconds.'),
                   ],
                 ),
               ),
@@ -98,53 +102,62 @@ class _ReportBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = scan.analysis;
+    final hasFullReport = a['health_score'] is num;
+    final matches = (a['plantnet'] as List? ?? []).whereType<Map>().toList();
     final disease = a['disease_or_pest'] as Map<String, dynamic>? ?? {};
     final nutrient = a['nutrient_deficiency'] as Map<String, dynamic>? ?? {};
     final treatmentPlan = (a['treatment_plan'] as List? ?? []).cast<String>();
     final organicAlts =
         (a['organic_alternatives'] as List? ?? []).cast<String>();
     final prevention = (a['prevention_steps'] as List? ?? []).cast<String>();
-    final healthScore = a['health_score'] as int? ?? 0;
+    final healthScore = (a['health_score'] as num?)?.round() ?? 0;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _ScoreHeader(score: healthScore, confidence: scan.confidenceLevel),
+        if (hasFullReport)
+          _ScoreHeader(score: healthScore, confidence: scan.confidenceLevel)
+        else
+          _Section(
+              title: 'Confidence', body: _capitalize(scan.confidenceLevel)),
         const SizedBox(height: 8),
         if (a['summary'] != null)
           _Section(title: 'Summary', body: a['summary'].toString()),
-        _Section(
-          title: 'Growth stage',
-          body: (a['growth_stage'] ?? 'Not determined').toString(),
-        ),
-        _Section(
-          title: 'Disease / pest',
-          body: (disease['detected'] == true)
-              ? '${disease['name'] ?? 'Unspecified'} — ${disease['details'] ?? ''}'
-              : 'None detected.',
-        ),
-        _Section(
-          title: 'Nutrient deficiency',
-          body: (nutrient['detected'] == true)
-              ? '${nutrient['nutrient'] ?? 'Unspecified'} — ${nutrient['details'] ?? ''}'
-              : 'None detected.',
-        ),
-        if (treatmentPlan.isNotEmpty)
-          _ListSection(title: 'Treatment plan', items: treatmentPlan),
-        _Section(
-            title: 'Dosage guidance',
-            body: (a['dosage_guidance'] ?? 'Not applicable').toString()),
-        if (organicAlts.isNotEmpty)
-          _ListSection(title: 'Organic alternatives', items: organicAlts),
-        if (prevention.isNotEmpty)
-          _ListSection(title: 'Prevention', items: prevention),
-        _Section(
-          title: 'Estimated recovery time',
-          body: (a['estimated_recovery_time'] ?? 'Not applicable').toString(),
-        ),
+        if (matches.isNotEmpty) _MatchesSection(matches: matches),
+        if (hasFullReport) ...[
+          _Section(
+            title: 'Growth stage',
+            body: (a['growth_stage'] ?? 'Not determined').toString(),
+          ),
+          _Section(
+            title: 'Disease / pest',
+            body: (disease['detected'] == true)
+                ? '${disease['name'] ?? 'Unspecified'} \u2014 ${disease['details'] ?? ''}'
+                : 'None detected.',
+          ),
+          _Section(
+            title: 'Nutrient deficiency',
+            body: (nutrient['detected'] == true)
+                ? '${nutrient['nutrient'] ?? 'Unspecified'} \u2014 ${nutrient['details'] ?? ''}'
+                : 'None detected.',
+          ),
+          if (treatmentPlan.isNotEmpty)
+            _ListSection(title: 'Treatment plan', items: treatmentPlan),
+          _Section(
+              title: 'Dosage guidance',
+              body: (a['dosage_guidance'] ?? 'Not applicable').toString()),
+          if (organicAlts.isNotEmpty)
+            _ListSection(title: 'Organic alternatives', items: organicAlts),
+          if (prevention.isNotEmpty)
+            _ListSection(title: 'Prevention', items: prevention),
+          _Section(
+            title: 'Estimated recovery time',
+            body: (a['estimated_recovery_time'] ?? 'Not applicable').toString(),
+          ),
+        ],
         const SizedBox(height: 12),
         _Disclaimer(),
-        if (enableFollowUpChat) ...[
+        if (enableFollowUpChat && hasFullReport) ...[
           const SizedBox(height: 20),
           FilledButton.icon(
             icon: const Icon(Icons.chat_outlined),
@@ -193,8 +206,7 @@ class _ScoreHeader extends StatelessWidget {
                 children: [
                   const Text('Overall health score',
                       style: TextStyle(fontWeight: FontWeight.w600)),
-                  Text(
-                      'Confidence: ${confidence[0].toUpperCase()}${confidence.substring(1)}'),
+                  Text('Confidence: ${_capitalize(confidence)}'),
                 ],
               ),
             ),
@@ -247,11 +259,27 @@ class _ListSection extends StatelessWidget {
             const SizedBox(height: 6),
             ...items.map((i) => Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('•  $i'),
+                  child: Text('\u2022  $i'),
                 )),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MatchesSection extends StatelessWidget {
+  const _MatchesSection({required this.matches});
+  final List<Map> matches;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ListSection(
+      title: 'Possible matches (Pl@ntNet)',
+      items: [
+        for (final m in matches)
+          '${m['label']} \u2014 ${(((m['score'] as num?) ?? 0) * 100).round()}%',
+      ],
     );
   }
 }
