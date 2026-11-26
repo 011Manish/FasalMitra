@@ -1,24 +1,24 @@
-# RLS verification checklist
+﻿# RLS verification checklist
 
 This is the single most important thing to run through before shipping this
-phase. If any step here fails, stop and fix it — do not carry a broken RLS
+phase. If any step here fails, stop and fix it â€” do not carry a broken RLS
 policy into the next phase.
 
 You'll need:
 
 - Two throwaway phone numbers (or two email accounts if phone OTP isn't
-  wired up yet) — call them **Farmer A** and **Farmer B**.
-- A SQL editor connected as `postgres` / service role — Supabase dashboard
+  wired up yet) â€” call them **Farmer A** and **Farmer B**.
+- A SQL editor connected as `postgres` / service role â€” Supabase dashboard
   -> SQL editor works. You'll use this only to _observe_, not to bypass RLS.
 - `curl` (or Postman/Insomnia) for the raw REST checks.
 
 ## Setup
 
 1. Sign up as **Farmer A** in the Flutter app. Create two farm profiles for
-   them (any crop). Note down the `id` of one of A's farm profiles — call
+   them (any crop). Note down the `id` of one of A's farm profiles â€” call
    it `FARM_A_ID`.
 2. Sign out. Sign up as **Farmer B**. Create one farm profile. Note down
-   B's access token — you can `print(session.accessToken)` briefly in the
+   B's access token â€” you can `print(session.accessToken)` briefly in the
    app or grab it from the auth response in the browser tools.
 
 ## Checks
@@ -31,8 +31,8 @@ farm. It must not show A's two farms.
 Via REST, with **B's** access token:
 
 ```bash
-curl -H "Authorization: Bearer B_ACCESS_TOKEN" \
-     -H "apikey: YOUR_ANON_KEY" \
+curl -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+     -H "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
      "https://YOUR-REF.supabase.co/rest/v1/farm_profiles?select=id,name"
 ```
 
@@ -42,19 +42,19 @@ back, RLS is broken.
 ### 2. Farmer B cannot read a specific farm of Farmer A by ID
 
 ```bash
-curl -H "Authorization: Bearer B_ACCESS_TOKEN" \
-     -H "apikey: YOUR_ANON_KEY" \
+curl -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+     -H "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
      "https://YOUR-REF.supabase.co/rest/v1/farm_profiles?id=eq.FARM_A_ID"
 ```
 
-Expected: empty array `[]`. (Not 403 — RLS filters, it doesn't error.)
+Expected: empty array `[]`. (Not 403 â€” RLS filters, it doesn't error.)
 
 ### 3. Farmer B cannot update Farmer A's farm
 
 ```bash
 curl -X PATCH \
-     -H "Authorization: Bearer B_ACCESS_TOKEN" \
-     -H "apikey: YOUR_ANON_KEY" \
+     -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+     -H "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
      -H "Content-Type: application/json" \
      -H "Prefer: return=representation" \
      -d '{"name":"pwned"}' \
@@ -68,8 +68,8 @@ Verify in the SQL editor that A's farm name is unchanged.
 
 ```bash
 curl -X DELETE \
-     -H "Authorization: Bearer B_ACCESS_TOKEN" \
-     -H "apikey: YOUR_ANON_KEY" \
+     -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+     -H "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
      "https://YOUR-REF.supabase.co/rest/v1/farm_profiles?id=eq.FARM_A_ID"
 ```
 
@@ -79,8 +79,8 @@ Expected: 204 with no rows affected. Confirm A's farm still exists.
 
 ```bash
 curl -X POST \
-     -H "Authorization: Bearer B_ACCESS_TOKEN" \
-     -H "apikey: YOUR_ANON_KEY" \
+     -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+     -H "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
      -H "Content-Type: application/json" \
      -d '{"user_id":"A_USER_ID","name":"stolen","crop_type":"rice",
           "land_size_hectares":1,"plantation_date":"2026-01-01",
@@ -97,8 +97,8 @@ Sign in as A in the app, edit one of A's farms (trigger schedule
 regeneration). Then, as B:
 
 ```bash
-curl -H "Authorization: Bearer B_ACCESS_TOKEN" \
-     -H "apikey: YOUR_ANON_KEY" \
+curl -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+     -H "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
      "https://YOUR-REF.supabase.co/rest/v1/schedule_items?select=id,farm_id"
 ```
 
@@ -106,7 +106,7 @@ Expected: only schedule items belonging to B's farms, none from A's.
 
 ### 7. Storage: Farmer B cannot download a file uploaded under A's folder
 
-(Once media uploads exist — from Phase 2 onward.) Upload a file under
+(Once media uploads exist â€” from Phase 2 onward.) Upload a file under
 `A_USER_ID/anything.jpg` while signed in as A. Then try to download it
 via a URL signed as B. Expected: 403 or "object not found."
 
@@ -147,3 +147,4 @@ order by tablename, policyname;
 Only `crop_rules` should have a broad `true` select policy (it's a public
 lookup table for signed-in users). Everything else must scope by
 `auth.uid()`.
+

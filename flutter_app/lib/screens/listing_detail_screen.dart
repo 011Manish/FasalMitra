@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/marketplace_listing.dart';
 import '../services/marketplace_service.dart';
+import '../widgets/figma_icons.dart';
 
 class ListingDetailScreen extends StatefulWidget {
-  const ListingDetailScreen({super.key, required this.service, required this.listing});
+  const ListingDetailScreen(
+      {super.key, required this.service, required this.listing});
   final MarketplaceService service;
   final MarketplaceListing listing;
 
@@ -15,85 +16,62 @@ class ListingDetailScreen extends StatefulWidget {
 }
 
 class _ListingDetailScreenState extends State<ListingDetailScreen> {
-  late Future<List<MarketplaceBid>> _bids;
-  final _bidAmount = TextEditingController();
-  final _buyQuantity = TextEditingController(text: '1');
+  final _form = GlobalKey<FormState>();
+  final _message = TextEditingController();
+  final _phone = TextEditingController();
   bool _busy = false;
 
-  bool get _isMine =>
-      widget.listing.sellerId == Supabase.instance.client.auth.currentUser?.id;
+  late Future<List<String>> _photoUrls = _loadPhotoUrls();
+
+  bool get _isMine => widget.listing.sellerId == widget.service.currentUserId;
 
   @override
-  void initState() {
-    super.initState();
-    _bids = widget.listing.isAuction
-        ? widget.service.bidsFor(widget.listing.id)
-        : Future.value(const []);
+  void dispose() {
+    _message.dispose();
+    _phone.dispose();
+    super.dispose();
   }
 
-  Future<void> _placeBid() async {
-    final amount = double.tryParse(_bidAmount.text.trim());
-    if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Enter a valid bid amount')));
-      return;
-    }
+  void _snack(String message, {VoidCallback? onRetry}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      action: onRetry == null
+          ? null
+          : SnackBarAction(label: 'Retry', onPressed: onRetry),
+    ));
+  }
+
+  Future<List<String>> _loadPhotoUrls() async {
+    final photos = await widget.service.photos(widget.listing.id);
+    return Future.wait(
+        photos.map((p) => widget.service.signedUrl(p.storagePath)));
+  }
+
+  void _reloadPhotos() => setState(() => _photoUrls = _loadPhotoUrls());
+
+  Future<void> _sendEnquiry() async {
+    if (!_form.currentState!.validate()) return;
     setState(() => _busy = true);
     try {
-      await widget.service.placeBid(widget.listing.id, amount);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bid placed')));
-        setState(() => _bids = widget.service.bidsFor(widget.listing.id));
-        _bidAmount.clear();
-      }
+      final phone = _phone.text.trim();
+      await widget.service.sendEnquiry(
+        listingId: widget.listing.id,
+        message: _message.text.trim(),
+        phone: phone.isEmpty ? null : phone,
+      );
+      if (!mounted) return;
+      _message.clear();
+      _snack('Enquiry sent to the seller.');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Bid rejected: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _requestToBuy() async {
-    final qty = double.tryParse(_buyQuantity.text.trim());
-    if (qty == null || qty <= 0) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Enter a valid quantity')));
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      await widget.service.requestToBuy(widget.listing.id, qty);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Request sent to seller')));
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Request failed: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _cancelListing() async {
-    setState(() => _busy = true);
-    try {
-      await widget.service.cancel(widget.listing.id);
-      if (mounted) Navigator.pop(context, true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _markSold() async {
-    setState(() => _busy = true);
-    try {
-      await widget.service.markSold(widget.listing.id);
-      if (mounted) Navigator.pop(context, true);
+      _snack(
+        marketplaceErrorMessage(
+          e,
+          fallback: 'Could not send your enquiry.',
+          denied: 'This listing is no longer available for enquiries.',
+        ),
+        onRetry: _sendEnquiry,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -102,110 +80,162 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final l = widget.listing;
-    final df = DateFormat.yMMMd().add_jm();
+    final theme = Theme.of(context);
+    final description = l.description;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l.title),
-        actions: [
-          if (_isMine && l.status == 'active')
-            PopupMenuButton<String>(
-              onSelected: (v) {
-                if (v == 'cancel') _cancelListing();
-                if (v == 'sold') _markSold();
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'cancel', child: Text('Cancel listing')),
-                if (!l.isAuction) const PopupMenuItem(value: 'sold', child: Text('Mark as sold')),
-              ],
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(l.title)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Chip(label: Text(listingCategoryLabels[l.itemCategory] ?? l.itemCategory)),
-          const SizedBox(height: 12),
-          if (l.description != null) ...[
-            Text(l.description!),
-            const SizedBox(height: 16),
-          ],
-          Text('${l.quantity} ${l.unit} available',
-              style: Theme.of(context).textTheme.bodyLarge),
+          _PhotoStrip(urls: _photoUrls, onRetry: _reloadPhotos),
+          Text('${l.currency} ${l.price.toStringAsFixed(2)} / ${l.unit}',
+              style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
-          Text(
-            l.isAuction
-                ? 'Current bid: ${l.currency} ${l.currentPrice.toStringAsFixed(2)}'
-                : 'Price: ${l.currency} ${l.price.toStringAsFixed(2)} / ${l.unit}',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          if (l.isAuction && l.auctionEndAt != null) ...[
+          Text('${l.quantityLabel} available',
+              style: theme.textTheme.bodyLarge),
+          if (l.locationText.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(
-              l.auctionHasEnded ? 'Auction ended ${df.format(l.auctionEndAt!)}'
-                                 : 'Auction ends ${df.format(l.auctionEndAt!)}',
-              style: TextStyle(color: l.auctionHasEnded ? Colors.red : null),
+            _InfoRow(icon: Icons.place_outlined, text: l.locationText),
+          ],
+          if (l.availableFrom != null) ...[
+            const SizedBox(height: 4),
+            _InfoRow(
+              icon: Icons.event_outlined,
+              text:
+                  'Available from ${DateFormat.yMMMd().format(l.availableFrom!)}',
             ),
           ],
-          const SizedBox(height: 24),
-
-          if (!_isMine && l.status == 'active' && l.isAuction && !l.auctionHasEnded) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _bidAmount,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Your bid (NPR)'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton(onPressed: _busy ? null : _placeBid, child: const Text('Place bid')),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text('Bid history', style: Theme.of(context).textTheme.titleMedium),
-            FutureBuilder<List<MarketplaceBid>>(
-              future: _bids,
-              builder: (context, snap) {
-                final bids = snap.data ?? [];
-                if (bids.isEmpty) return const Text('No bids yet.');
-                return Column(
-                  children: bids
-                      .map((b) => ListTile(
-                            dense: true,
-                            title: Text('${l.currency} ${b.amount.toStringAsFixed(2)}'),
-                            subtitle: Text(df.format(b.createdAt)),
-                          ))
-                      .toList(),
-                );
-              },
-            ),
+          if (description != null && description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(description),
           ],
-
-          if (!_isMine && l.status == 'active' && !l.isAuction) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _buyQuantity,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(labelText: 'Quantity (${l.unit})'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton(
-                    onPressed: _busy ? null : _requestToBuy, child: const Text('Request to buy')),
-              ],
-            ),
-          ],
-
-          if (l.status != 'active') ...[
-            const SizedBox(height: 8),
-            Chip(label: Text('Listing ${l.status}')),
-          ],
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, children: [
+            Chip(label: Text(l.statusLabel)),
+            if (l.isHidden && _isMine)
+              const Chip(label: Text('Hidden by an admin')),
+          ]),
+          const SizedBox(height: 16),
+          if (_isMine)
+            const Text(
+                'Manage this listing and read its enquiries from My listings.')
+          else if (l.isActive)
+            _buildEnquiryForm(theme)
+          else
+            const Text('This listing is no longer available for enquiries.'),
         ],
       ),
+    );
+  }
+
+  Widget _buildEnquiryForm(ThemeData theme) {
+    return Form(
+      key: _form,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Contact the seller', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _message,
+            maxLines: 3,
+            validator: validateEnquiryMessage,
+            decoration: const InputDecoration(
+              labelText: 'Your message',
+              hintText: 'Ask about price, quantity or pickup',
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _phone,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+                labelText: 'Your phone number (optional)'),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Your name and the phone number saved in your profile are shared '
+            'with the seller so they can reply.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: _busy ? null : _sendEnquiry,
+            child: Text(_busy ? 'Sending...' : 'Send enquiry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      FIcon(icon, size: 18),
+      const SizedBox(width: 4),
+      Expanded(child: Text(text)),
+    ]);
+  }
+}
+
+class _PhotoStrip extends StatelessWidget {
+  const _PhotoStrip({required this.urls, required this.onRetry});
+  final Future<List<String>> urls;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<String>>(
+      future: urls,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const SizedBox(
+              height: 200, child: Center(child: CircularProgressIndicator()));
+        }
+        if (snap.hasError) {
+          return Row(children: [
+            const Expanded(child: Text('Photos could not be loaded.')),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ]);
+        }
+        final list = snap.data ?? const <String>[];
+        if (list.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: SizedBox(
+            height: 200,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: list.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  list[i],
+                  width: 200,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 200,
+                    height: 200,
+                    alignment: Alignment.center,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: const FIcon(Icons.broken_image_outlined),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

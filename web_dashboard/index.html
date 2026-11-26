@@ -3,43 +3,74 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Krishi Dashboard</title>
+  <title>FasalMitra Admin</title>
+  <link rel="icon" href="logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <h1>Krishi Admin</h1>
-    <div id="who"></div>
+  <div class="corner" aria-hidden="true"></div>
+
+  <header class="top">
+    <div class="brand"><img src="logo.png" alt="" /><span>FasalMitra</span></div>
+    <div class="top-right">
+      <span id="who"></span>
+      <button id="signout-btn" class="pill ghost" data-i="Sign out" hidden>Sign out</button>
+      <div class="lang" role="group" aria-label="Language">
+        <button data-lang="en">EN</button><button data-lang="ne">नेपाली</button>
+      </div>
+    </div>
   </header>
 
   <main>
-    <section id="auth-panel">
-      <h2>Sign in</h2>
-      <form id="signin-form">
-        <label>Email <input type="email" name="email" required /></label>
-        <label>Password <input type="password" name="password" required minlength="8" /></label>
-        <button type="submit">Sign in</button>
+    <section id="auth-panel" class="auth">
+      <h1 data-i="Admin">Admin</h1>
+      <p class="sub" data-i="Staff accounts only. Farmers and buyers use the mobile app.">Staff accounts only. Farmers and buyers use the mobile app.</p>
+      <form id="signin-form" class="card">
+        <label><span data-i="Email">Email</span><input type="email" name="email" required autocomplete="username" /></label>
+        <label><span data-i="Password">Password</span><input type="password" name="password" required minlength="8" autocomplete="current-password" /></label>
+        <button type="submit" class="pill solid" data-i="Sign in">Sign in</button>
+        <p id="auth-message" class="error" role="alert"></p>
       </form>
-      <p class="hint">
-        This dashboard is for staff accounts. Farmers should use the mobile app.
-      </p>
     </section>
 
-    <section id="dashboard" hidden>
-      <h2>Your farm profiles (this signed-in user only)</h2>
-      <p class="hint">
-        Because RLS is enabled, even the admin dashboard only sees what the
-        signed-in user is allowed to see. To view other users' data, you'll
-        need a service-role backend — deliberately out of scope for the
-        static dashboard.
-      </p>
-      <table id="farms-table">
-        <thead><tr><th>Name</th><th>Crop</th><th>Size (ha)</th><th>Planted</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <button id="signout-btn">Sign out</button>
+    <section id="dashboard" class="shell" hidden>
+      <nav id="tabs" aria-label="Sections"></nav>
+      <div class="content">
+        <h1 id="view-title"></h1>
+        <p id="status" class="sub" aria-live="polite"></p>
+        <div class="bar">
+          <input id="search" type="search" data-ph="Search" placeholder="Search" aria-label="Search" />
+          <button id="add-btn" class="pill solid" data-i="Add new" hidden>Add new</button>
+        </div>
+        <div id="list" class="list"></div>
+      </div>
     </section>
   </main>
+
+  <dialog id="editor">
+    <form id="editor-form">
+      <h2 id="editor-title"></h2>
+      <div id="editor-fields"></div>
+      <p id="editor-error" class="error" role="alert"></p>
+      <button type="submit" class="pill solid" data-i="Save changes">Save changes</button>
+      <button type="button" id="cancel-btn" class="pill ghost" data-i="Cancel">Cancel</button>
+    </form>
+  </dialog>
+
+  <dialog id="review">
+    <h2 id="review-title"></h2>
+    <dl id="review-body"></dl>
+    <div id="review-actions"></div>
+    <button type="button" id="review-close" class="pill ghost" data-i="Back">Back</button>
+  </dialog>
+
+  <dialog id="confirm" class="small">
+    <p id="confirm-msg"></p>
+    <button type="button" id="confirm-yes" class="pill danger-solid" data-i="Delete">Delete</button>
+    <button type="button" id="confirm-no" class="pill ghost" data-i="Cancel">Cancel</button>
+  </dialog>
 
   <script src="config.js"></script>
   <script type="module" src="app.js"></script>

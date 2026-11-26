@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/plant_scan.dart';
+import '../services/plant_scan_service.dart';
+import '../widgets/figma_icons.dart';
 
 // Flip this to false to hide the "More inquiry" button everywhere. The
 // core photo-to-report flow works fully with this off.
@@ -24,6 +26,7 @@ class _ChatMessage {
 
 class _PlantScanFollowUpChatScreenState
     extends State<PlantScanFollowUpChatScreen> {
+  late final _scans = PlantScanService(Supabase.instance.client);
   final _controller = TextEditingController();
   final _messages = <_ChatMessage>[];
   bool _sending = false;
@@ -39,17 +42,16 @@ class _PlantScanFollowUpChatScreenState
     });
 
     try {
-      final res = await Supabase.instance.client.functions.invoke(
-        'plant-scan-followup',
-        body: {'scan_id': widget.scan.id, 'question': question},
-      );
-      final answer = res.status == 200
-          ? (res.data['answer']?.toString() ?? 'No answer returned.')
-          : 'Something went wrong answering that — try again.';
-      setState(() => _messages.add(_ChatMessage(answer, fromUser: false)));
+      final answer =
+          await _scans.askFollowUp(scanId: widget.scan.id, question: question);
+      if (!mounted) return;
+      setState(() => _messages.add(_ChatMessage(
+          answer.isEmpty ? 'No answer returned.' : answer,
+          fromUser: false)));
     } catch (e) {
+      if (!mounted) return;
       setState(() => _messages
-          .add(_ChatMessage('Something went wrong: $e', fromUser: false)));
+          .add(_ChatMessage(plantScanErrorMessage(e), fromUser: false)));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -78,7 +80,9 @@ class _PlantScanFollowUpChatScreenState
                     decoration: BoxDecoration(
                       color: m.fromUser
                           ? Theme.of(context).colorScheme.primaryContainer
-                          : Theme.of(context).colorScheme.surfaceContainerHighest,
+                          : Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(m.text),
@@ -104,7 +108,7 @@ class _PlantScanFollowUpChatScreenState
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.send),
+                    icon: const FIcon(Icons.send),
                     onPressed: _sending ? null : _send,
                   ),
                 ],

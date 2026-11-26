@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../l10n/app_lang.dart';
 import '../services/farm_service.dart';
 import '../services/marketplace_service.dart';
-import 'camera_choice_screen.dart';
+import '../theme/app_theme.dart';
+import '../widgets/design_kit.dart';
 import 'farms_list_screen.dart';
 import 'home_grid_screen.dart';
 import 'marketplace_screen.dart';
+import 'notifications_screen.dart';
+import 'profile_hub_screen.dart';
+import '../widgets/figma_icons.dart';
 
+/// App shell: top bar, the four tabs (Home, My Farms, Market, Profile) and the
+/// bottom navigation bar from the design.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -20,148 +27,118 @@ class _HomeScreenState extends State<HomeScreen> {
   late final _farms = FarmService(Supabase.instance.client);
   late final _marketplace = MarketplaceService(Supabase.instance.client);
 
-  Future<void> _confirmDeleteAccount() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete account?'),
-        content: const Text(
-          'This will permanently delete your account and all your farm '
-          'profiles. This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await _farms.deleteAccount();
-    }
-  }
+  void _goTo(int index) => setState(() => _tab = index);
 
-  void _openCamera() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const CameraChoiceScreen()),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screens = [
-      const HomeGridScreen(),
-      FarmsListScreen(service: _farms),
-      MarketplaceScreen(service: _marketplace),
-    ];
-    const titles = ['Home', 'My farms'];
-
-    return Scaffold(
-      appBar: _tab == 2
-          ? null // MarketplaceScreen has its own AppBar
-          : AppBar(
-              title: Text(titles[_tab]),
-              actions: [
-                PopupMenuButton<String>(
-                  onSelected: (v) async {
-                    if (v == 'signout') {
-                      await Supabase.instance.client.auth.signOut();
-                    } else if (v == 'delete') {
-                      await _confirmDeleteAccount();
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'signout', child: Text('Sign out')),
-                    PopupMenuItem(
-                        value: 'delete', child: Text('Delete my account')),
-                  ],
-                ),
-              ],
+  PreferredSizeWidget? _appBar() {
+    switch (_tab) {
+      case 0:
+        return AppBar(
+          automaticallyImplyLeading: false,
+          titleSpacing: 0,
+          leading: IconButton(
+            tooltip: tr('Profile'),
+            onPressed: () => _goTo(3),
+            icon: const CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.white,
+              child: FIcon(
+                Icons.person_outline,
+                size: 20,
+                color: AppColors.primary,
+              ),
             ),
-      body: screens[_tab],
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'cameraButton',
-        onPressed: _openCamera,
-        tooltip: 'Scan',
-        shape: const CircleBorder(),
-        child: const Icon(Icons.photo_camera),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        padding: EdgeInsets.zero,
-        child: SizedBox(
-          height: 64,
-          child: Row(
+          ),
+          title: Row(
             children: [
-              Expanded(
-                child: _NavTab(
-                  icon: Icons.home_outlined,
-                  label: 'Home',
-                  selected: _tab == 0,
-                  onTap: () => setState(() => _tab = 0),
-                ),
-              ),
-              Expanded(
-                child: _NavTab(
-                  icon: Icons.grass,
-                  label: 'Farms',
-                  selected: _tab == 1,
-                  onTap: () => setState(() => _tab = 1),
-                ),
-              ),
-              // Gap where the docked camera FAB sits.
-              const SizedBox(width: 72),
-              Expanded(
-                child: _NavTab(
-                  icon: Icons.storefront_outlined,
-                  label: 'Market',
-                  selected: _tab == 2,
-                  onTap: () => setState(() => _tab = 2),
+              Image.asset('assets/images/logo.png', height: 26),
+              const SizedBox(width: 6),
+              const Flexible(
+                child: Text(
+                  'FasalMitra',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
                 ),
               ),
             ],
           ),
-        ),
-      ),
-    );
+          actions: const [
+            NotificationBell(),
+            LangToggle(),
+            SizedBox(width: 12),
+          ],
+        );
+      case 1:
+        return AppBar(
+          title: Text(
+            tr('My Farms'),
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          actions: const [LangToggle(), SizedBox(width: 12)],
+        );
+      default:
+        // Market and Profile draw their own top bar.
+        return null;
+    }
   }
-}
-
-class _NavTab extends StatelessWidget {
-  const _NavTab({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = selected
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: color, fontSize: 12)),
-        ],
-      ),
+    return LangBuilder(
+      builder: (context) {
+        final pages = <Widget>[
+          HomeGridScreen(onOpenFarms: () => _goTo(1)),
+          FarmsListScreen(service: _farms),
+          MarketplaceScreen(service: _marketplace),
+          ProfileHubScreen(farms: _farms, marketplace: _marketplace),
+        ];
+        return DesignBackground(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            appBar: _appBar(),
+            body: pages[_tab],
+            bottomNavigationBar: NavigationBar(
+              backgroundColor: Colors.white,
+              selectedIndex: _tab,
+              onDestinationSelected: _goTo,
+              destinations: [
+                NavigationDestination(
+                  icon: const FIcon(Icons.home_outlined),
+                  selectedIcon: const FIcon(
+                    Icons.home,
+                    color: AppColors.primary,
+                  ),
+                  label: tr('Home'),
+                ),
+                NavigationDestination(
+                  icon: const FIcon(Icons.grass),
+                  selectedIcon: const FIcon(
+                    Icons.grass,
+                    color: AppColors.primary,
+                  ),
+                  label: tr('My Farms'),
+                ),
+                NavigationDestination(
+                  icon: const FIcon(Icons.trending_up),
+                  selectedIcon: const FIcon(
+                    Icons.trending_up,
+                    color: AppColors.primary,
+                  ),
+                  label: tr('Market'),
+                ),
+                NavigationDestination(
+                  icon: const FIcon(Icons.person_outline),
+                  selectedIcon: const FIcon(
+                    Icons.person,
+                    color: AppColors.primary,
+                  ),
+                  label: tr('Profile'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

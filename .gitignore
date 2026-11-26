@@ -20,3 +20,34 @@ supabase/.temp/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Environment and secret files
+.env
+.env.*
+!.env.example
+**/app.env
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/key.properties
+**/credentials.json
+**/service-account*.json
+
+# Flutter generated files
+**/.dart_tool/
+**/build/
+**/.flutter-plugins-dependencies
+**/.packages
+
+# Node generated files
+**/node_modules/
+
+# Local configuration
+**/local.properties
+
+
+# Public Supabase client config required by the current Flutter app
+!flutter_app/assets/app.env
