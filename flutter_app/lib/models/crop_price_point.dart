@@ -8,6 +8,8 @@ class CropPricePoint {
     required this.minPrice,
     required this.maxPrice,
     required this.unit,
+    this.marketName,
+    this.isDemo = true,
   });
 
   final String id;
@@ -18,6 +20,11 @@ class CropPricePoint {
   final double minPrice;
   final double maxPrice;
   final String unit;
+  final String? marketName;
+
+  /// Defaults to true on purpose: anything not explicitly marked real
+  /// is treated as sample data.
+  final bool isDemo;
 
   factory CropPricePoint.fromMap(Map<String, dynamic> m) => CropPricePoint(
         id: m['id'] as String,
@@ -28,5 +35,7 @@ class CropPricePoint {
         minPrice: (m['min_price'] as num).toDouble(),
         maxPrice: (m['max_price'] as num).toDouble(),
         unit: m['unit'] as String,
+        marketName: m['market_name'] as String?,
+        isDemo: (m['is_demo'] as bool?) ?? true,
       );
 }

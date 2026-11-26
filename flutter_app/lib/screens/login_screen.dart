@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config/auth_options.dart';
+import '../l10n/app_lang.dart';
+import '../services/profile_validators.dart';
+import '../widgets/design_kit.dart';
+import 'verify_code_screen.dart';
+
 enum _EmailMode { signIn, signUp, forgot }
 
 class LoginScreen extends StatefulWidget {
@@ -15,280 +21,399 @@ class _LoginScreenState extends State<LoginScreen> {
   final _codeCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
 
-  bool _codeSent = false;
   bool _busy = false;
-  bool _useEmailFallback = false;
+  bool _codeSent = false;
+  bool _useEmail = !AuthOptions.phoneLogin;
   _EmailMode _mode = _EmailMode.signIn;
+  String _role = 'farmer'; // database accepts: farmer, buyer
+  String _country = 'NP'; // database accepts: NP, IN
 
-  final _phoneRe = RegExp(r'^\+?[0-9]{7,15}$');
+  GoTrueClient get _auth => Supabase.instance.client.auth;
 
   @override
   void dispose() {
-    _phoneCtrl.dispose();
-    _codeCtrl.dispose();
-    _emailCtrl.dispose();
-    _passwordCtrl.dispose();
+    for (final c in [
+      _phoneCtrl,
+      _codeCtrl,
+      _emailCtrl,
+      _passwordCtrl,
+      _confirmCtrl,
+      _nameCtrl,
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  // ---------- Phone ----------
+  // ---------- Actions (same backend calls as before) ----------
 
-  Future<void> _sendOtp() async {
-    final phone = _phoneCtrl.text.trim();
-    if (!_phoneRe.hasMatch(phone)) {
-      _snack('Enter a valid phone number, e.g. +9779812345678');
-      return;
-    }
+  /// Runs [action] with the busy flag set and shows a plain message on failure.
+  Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
     try {
-      await Supabase.instance.client.auth.signInWithOtp(phone: phone);
+      await action();
+    } on AuthException catch (e) {
+      _snack(e.message);
+    } catch (_) {
+      _snack(tr('Could not connect. Check your internet and try again.'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Only NP and IN are valid in the database, so anything else returns null.
+  String? _countryFromPhone(String phone) {
+    if (phone.startsWith('+977')) return 'NP';
+    if (phone.startsWith('+91')) return 'IN';
+    return null;
+  }
+
+  void _sendOtp() {
+    final phone = _phoneCtrl.text.trim();
+    final error = phoneError(phone);
+    if (error != null) {
+      _snack(error);
+      return;
+    }
+    _run(() async {
+      final country = _countryFromPhone(phone);
+      await _auth.signInWithOtp(
+        phone: phone,
+        data: {'phone': phone, if (country != null) 'country': country},
+      );
       if (!mounted) return;
       setState(() => _codeSent = true);
-      _snack('Code sent. Check your SMS.');
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+      _snack(tr('Code sent. Check your SMS.'));
+    });
   }
 
-  Future<void> _verifyOtp() async {
-    final phone = _phoneCtrl.text.trim();
+  void _verifyOtp() {
     final code = _codeCtrl.text.trim();
     if (code.length != 6) {
-      _snack('Code must be 6 digits');
+      _snack(tr('Code must be 6 digits'));
       return;
     }
-    setState(() => _busy = true);
-    try {
-      await Supabase.instance.client.auth.verifyOTP(
+    _run(
+      () => _auth.verifyOTP(
         type: OtpType.sms,
-        phone: phone,
+        phone: _phoneCtrl.text.trim(),
         token: code,
-      );
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+      ),
+    );
   }
 
-  // ---------- Email ----------
-
-  Future<void> _emailSignIn() async {
+  void _signIn() {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     if (email.isEmpty || password.isEmpty) {
-      _snack('Enter your email and password');
+      _snack(tr('Enter your email and password'));
       return;
     }
-    setState(() => _busy = true);
-    try {
-      await Supabase.instance.client.auth
-          .signInWithPassword(email: email, password: password);
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    _run(() => _auth.signInWithPassword(email: email, password: password));
   }
 
-  Future<void> _emailSignUp() async {
+  void _signUp() {
+    final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
-    if (email.isEmpty || password.length < 8) {
-      _snack('Email + password (min 8 chars) required');
+    final error =
+        nameError(name) ?? emailError(email) ?? passwordError(password);
+    if (error != null) {
+      _snack(error);
       return;
     }
-    setState(() => _busy = true);
-    try {
-      final res = await Supabase.instance.client.auth
-          .signUp(email: email, password: password);
-      if (!mounted) return;
-      if (res.session == null) {
-        _snack('Account created. Check your email to confirm, then sign in.');
-        setState(() => _mode = _EmailMode.signIn);
-      }
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
+    if (password != _confirmCtrl.text) {
+      _snack(tr('Passwords do not match'));
+      return;
     }
+    _run(() async {
+      final res = await _auth.signUp(
+        email: email,
+        password: password,
+        data: {'full_name': name, 'role': _role, 'country': _country},
+      );
+      if (res.session != null || !mounted) return;
+      if (AuthOptions.emailCodes) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => VerifyCodeScreen(
+              email: email,
+              mode: VerifyMode.signUp,
+              name: name,
+            ),
+          ),
+        );
+        return;
+      }
+      _snack(tr('Account created. Check your email to confirm, then log in.'));
+      setState(() => _mode = _EmailMode.signIn);
+    });
   }
 
-  Future<void> _sendResetLink() async {
+  void _sendReset() {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
-      _snack('Enter your email first');
+      _snack(tr('Enter your email first'));
       return;
     }
-    setState(() => _busy = true);
-    try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: 'fasalmitra://login-callback/',
-      );
-      _snack('Reset link sent. Open it on this phone.');
-    } on AuthException catch (e) {
-      _snack(e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    _run(() async {
+      if (AuthOptions.emailCodes) {
+        await _auth.resetPasswordForEmail(email);
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                VerifyCodeScreen(email: email, mode: VerifyMode.recovery),
+          ),
+        );
+      } else {
+        await _auth.resetPasswordForEmail(
+          email,
+          redirectTo: 'fasalmitra://login-callback/',
+        );
+        _snack(tr('Reset link sent. Open it on this phone.'));
+      }
+    });
   }
 
-  void _setMode(_EmailMode m) => setState(() => _mode = m);
+  void _setMode(_EmailMode mode) => setState(() => _mode = mode);
 
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
+  void _toggleMethod() => setState(() {
+    _useEmail = !_useEmail;
+    _codeSent = false;
+    _mode = _EmailMode.signIn;
+  });
 
   // ---------- UI ----------
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 40),
-              Text('FASALMITRA',
-                  style: Theme.of(context).textTheme.displaySmall),
-              const SizedBox(height: 8),
-              Text(_subtitle()),
-              const SizedBox(height: 24),
-              if (!_useEmailFallback) ..._phoneFlow() else ..._emailFlow(),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => setState(() {
-                          _useEmailFallback = !_useEmailFallback;
-                          _codeSent = false;
-                          _mode = _EmailMode.signIn;
-                        }),
-                child: Text(_useEmailFallback
-                    ? 'Use phone number instead'
-                    : 'Use email + password instead'),
-              ),
-            ],
+    return LangBuilder(
+      builder: (context) {
+        if (!_useEmail) {
+          return AuthScaffold(
+            title: tr('Welcome back'),
+            subtitle: tr('Log in with your phone number.'),
+            children: _phoneFlow(),
+          );
+        }
+        return switch (_mode) {
+          _EmailMode.signIn => AuthScaffold(
+            title: tr('Welcome back'),
+            subtitle: tr('Log in with your email address and password.'),
+            children: _signInForm(),
           ),
-        ),
+          _EmailMode.signUp => AuthScaffold(
+            title: tr('Create your account'),
+            subtitle: tr('Join as a farmer or a buyer.'),
+            children: _signUpForm(),
+          ),
+          _EmailMode.forgot => AuthScaffold(
+            title: tr('Reset password'),
+            subtitle: AuthOptions.emailCodes
+                ? tr(
+                    'Enter your email address. We will send you a 6-digit code.',
+                  )
+                : tr(
+                    'Enter your email address. We will send you a reset link.',
+                  ),
+            onBack: () => _setMode(_EmailMode.signIn),
+            children: _forgotForm(),
+          ),
+        };
+      },
+    );
+  }
+
+  Widget _emailField() => TextField(
+    controller: _emailCtrl,
+    enabled: !_busy,
+    keyboardType: TextInputType.emailAddress,
+    decoration: const InputDecoration(hintText: 'example@gmail.com'),
+  );
+
+  Widget _button(String label, VoidCallback onPressed) =>
+      FilledButton(onPressed: _busy ? null : onPressed, child: Text(label));
+
+  Widget _switchLine(String question, String action, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(question),
+          TextButton(
+            onPressed: _busy ? null : onTap,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: const Size(0, 36),
+            ),
+            child: Text(
+              action,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  String _subtitle() {
-    if (!_useEmailFallback) return 'Sign in with your phone number to continue.';
-    switch (_mode) {
-      case _EmailMode.signIn:
-        return 'Sign in with your email and password.';
-      case _EmailMode.signUp:
-        return 'Create a new account.';
-      case _EmailMode.forgot:
-        return 'Enter your email and we will send you a reset link.';
-    }
+  Map<String, String> get _countries => {'NP': tr('Nepal'), 'IN': tr('India')};
+
+  List<Widget> _signInForm() => [
+    FieldLabel(tr('Country')),
+    PillChoice(
+      options: _countries,
+      selected: _country,
+      enabled: !_busy,
+      onChanged: (v) => setState(() => _country = v),
+    ),
+    FieldLabel(tr('Email')),
+    _emailField(),
+    FieldLabel(tr('Password')),
+    PasswordField(controller: _passwordCtrl, enabled: !_busy),
+    Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        onPressed: _busy ? null : () => _setMode(_EmailMode.forgot),
+        style: TextButton.styleFrom(foregroundColor: Colors.black),
+        child: Text(
+          tr('Forgot password?'),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      ),
+    ),
+    const SizedBox(height: 8),
+    _button(tr('Log in'), _signIn),
+    _switchLine(
+      tr('New to FasalMitra?'),
+      tr('Create account'),
+      () => _setMode(_EmailMode.signUp),
+    ),
+    if (AuthOptions.phoneLogin)
+      TextButton(
+        onPressed: _busy ? null : _toggleMethod,
+        child: Text(tr('Use phone number instead')),
+      ),
+  ];
+
+  List<Widget> _signUpForm() {
+    final pw = _passwordCtrl.text;
+    final confirm = _confirmCtrl.text;
+    return [
+      RoleCards(
+        selected: _role,
+        enabled: !_busy,
+        onChanged: (v) => setState(() => _role = v),
+      ),
+      FieldLabel(tr('Full name')),
+      TextField(
+        controller: _nameCtrl,
+        enabled: !_busy,
+        textCapitalization: TextCapitalization.words,
+        decoration: InputDecoration(hintText: tr('Your full name')),
+      ),
+      FieldLabel(tr('Country')),
+      PillChoice(
+        options: _countries,
+        selected: _country,
+        enabled: !_busy,
+        onChanged: (v) => setState(() => _country = v),
+      ),
+      FieldLabel(tr('Email')),
+      _emailField(),
+      HelperText(tr('Enter your existing gmail')),
+      FieldLabel(tr('Password')),
+      PasswordField(
+        controller: _passwordCtrl,
+        enabled: !_busy,
+        onChanged: (_) => setState(() {}),
+      ),
+      CheckLine(text: tr('At least 8 characters'), ok: pw.length >= 8),
+      CheckLine(
+        text: tr('Both passwords match'),
+        ok: pw.isNotEmpty && pw == confirm,
+      ),
+      FieldLabel(tr('Confirm password')),
+      PasswordField(
+        controller: _confirmCtrl,
+        enabled: !_busy,
+        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 20),
+      _button(tr('Create account'), _signUp),
+      _switchLine(
+        tr('Already have an account?'),
+        tr('Log in'),
+        () => _setMode(_EmailMode.signIn),
+      ),
+    ];
   }
+
+  List<Widget> _forgotForm() => [
+    FieldLabel(tr('Email')),
+    _emailField(),
+    const SizedBox(height: 20),
+    _button(
+      AuthOptions.emailCodes ? tr('Send code') : tr('Send reset link'),
+      _sendReset,
+    ),
+    const SizedBox(height: 4),
+    TextButton(
+      onPressed: _busy ? null : () => _setMode(_EmailMode.signIn),
+      child: Text(tr('Back to log in')),
+    ),
+  ];
 
   List<Widget> _phoneFlow() => [
-        TextField(
-          controller: _phoneCtrl,
-          keyboardType: TextInputType.phone,
-          decoration:
-              const InputDecoration(labelText: 'Phone (with country code)'),
-          enabled: !_codeSent,
-        ),
-        const SizedBox(height: 12),
-        if (_codeSent)
-          TextField(
-            controller: _codeCtrl,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            decoration: const InputDecoration(labelText: '6-digit code'),
-          ),
-        const SizedBox(height: 12),
-        FilledButton(
-          onPressed: _busy ? null : (_codeSent ? _verifyOtp : _sendOtp),
-          child: Text(_codeSent ? 'Verify code' : 'Send code'),
-        ),
-        if (_codeSent)
-          TextButton(
-            onPressed: _busy ? null : () => setState(() => _codeSent = false),
-            child: const Text('Use a different number'),
-          ),
-      ];
-
-  List<Widget> _emailFlow() {
-    final emailField = TextField(
-      controller: _emailCtrl,
-      keyboardType: TextInputType.emailAddress,
-      decoration: const InputDecoration(labelText: 'Email'),
-    );
-
-    switch (_mode) {
-      case _EmailMode.signIn:
-        return [
-          emailField,
-          const SizedBox(height: 12),
-          TextField(
-            controller: _passwordCtrl,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: 'Password'),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _emailSignIn,
-            child: const Text('Sign in'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: _busy ? null : () => _setMode(_EmailMode.signUp),
-            child: const Text('Create account'),
-          ),
-          TextButton(
-            onPressed: _busy ? null : () => _setMode(_EmailMode.forgot),
-            child: const Text('Forgot password?'),
-          ),
-        ];
-
-      case _EmailMode.signUp:
-        return [
-          emailField,
-          const SizedBox(height: 12),
-          TextField(
-            controller: _passwordCtrl,
-            obscureText: true,
-            decoration:
-                const InputDecoration(labelText: 'Password (min 8 characters)'),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _emailSignUp,
-            child: const Text('Create account'),
-          ),
-          TextButton(
-            onPressed: _busy ? null : () => _setMode(_EmailMode.signIn),
-            child: const Text('I already have an account'),
-          ),
-        ];
-
-      case _EmailMode.forgot:
-        return [
-          emailField,
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _sendResetLink,
-            child: const Text('Send reset link'),
-          ),
-          TextButton(
-            onPressed: _busy ? null : () => _setMode(_EmailMode.signIn),
-            child: const Text('Back to sign in'),
-          ),
-        ];
-    }
-  }
+    FieldLabel(tr('Phone (with country code)')),
+    TextField(
+      controller: _phoneCtrl,
+      enabled: !_busy && !_codeSent,
+      keyboardType: TextInputType.phone,
+      decoration: const InputDecoration(hintText: '+97798XXXXXXXX'),
+    ),
+    if (_codeSent) ...[
+      FieldLabel(tr('6-digit code')),
+      TextField(
+        controller: _codeCtrl,
+        enabled: !_busy,
+        keyboardType: TextInputType.number,
+        maxLength: 6,
+        decoration: const InputDecoration(counterText: ''),
+      ),
+    ],
+    const SizedBox(height: 20),
+    _button(
+      _codeSent ? tr('Verify code') : tr('Send code'),
+      _codeSent ? _verifyOtp : _sendOtp,
+    ),
+    if (_codeSent)
+      TextButton(
+        onPressed: () => setState(() => _codeSent = false),
+        child: Text(tr('Use a different number')),
+      ),
+    if (AuthOptions.phoneLogin)
+      TextButton(
+        onPressed: _busy ? null : _toggleMethod,
+        child: Text(tr('Use email and password instead')),
+      ),
+  ];
 }

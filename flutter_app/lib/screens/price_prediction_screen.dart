@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/price_trend.dart';
 import '../services/price_prediction_service.dart';
+import 'market_prices_screen.dart';
+import '../widgets/figma_icons.dart';
 
 class PricePredictionScreen extends StatefulWidget {
   const PricePredictionScreen({super.key});
@@ -41,7 +43,20 @@ class _PricePredictionScreenState extends State<PricePredictionScreen> {
         NumberFormat.currency(locale: 'en_IN', symbol: 'Rs ', decimalDigits: 1);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Price prediction')),
+      appBar: AppBar(
+        title: const Text('Price prediction'),
+        actions: [
+          IconButton(
+            icon: const FIcon(Icons.table_rows_outlined),
+            tooltip: 'Price list',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const MarketPricesScreen(),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: FutureBuilder<List<String>>(
         future: _crops,
         builder: (context, cropsSnap) {
@@ -107,12 +122,27 @@ class _PricePredictionScreenState extends State<PricePredictionScreen> {
                       TrendDirection.down => Colors.red,
                       TrendDirection.stable => Colors.grey,
                     };
+                    final latest = trend.points.last;
                     return ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
+                        if (latest.isDemo)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange),
+                            ),
+                            child: const Text(
+                              'DEMO / SAMPLE DATA: these are not live market prices.',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
                         Row(
                           children: [
-                            Icon(icon, color: color, size: 32),
+                            FIcon(icon, color: color, size: 32),
                             const SizedBox(width: 8),
                             Text(
                               '${trend.percentChange >= 0 ? '+' : ''}${trend.percentChange.toStringAsFixed(1)}%',
@@ -157,7 +187,10 @@ class _PricePredictionScreenState extends State<PricePredictionScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Based on Kalimati Market historical data.',
+                          '${latest.isDemo ? 'Sample data' : 'Source'}: '
+                          '${latest.marketName ?? latest.source}. '
+                          'Last updated: ${DateFormat.yMMMd().format(latest.recordedDate)}. '
+                          'The estimate is a simple trend projection, not a guaranteed price.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],

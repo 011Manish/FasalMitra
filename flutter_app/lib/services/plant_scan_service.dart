@@ -13,18 +13,35 @@ class PlantScanFailed implements Exception {
   String toString() => 'Plant health analysis failed: $reason';
 }
 
+/// A short plain message for the user. Never shows raw error text.
+String plantScanErrorMessage(Object error) {
+  if (error is PlantScanFailed) {
+    switch (error.reason) {
+      case 'server_misconfigured':
+        return 'AI Scan is not set up yet.';
+      case 'plantnet_rate_limited':
+        return 'The daily scan limit has been reached. Please try again tomorrow.';
+      case 'unsupported_image_type':
+        return 'This photo type is not supported. Use a JPG or PNG photo.';
+      case 'analysis_failed':
+        return 'The scan service did not respond. Please try again.';
+    }
+  }
+  return 'Could not complete this request. Check your internet and try again.';
+}
+
 class PlantScanService {
   PlantScanService(this._sb);
   final SupabaseClient _sb;
 
   String get _uid => _sb.auth.currentUser!.id;
 
-  Future<String> uploadScanPhoto(
-      {required String farmId, required File file}) async {
+  Future<String> uploadScanPhoto({String? farmId, required File file}) async {
     final ext = _extensionFor(file.path);
     final filename = '${DateTime.now().toUtc().millisecondsSinceEpoch}-'
         '${_shortId()}$ext';
-    final path = '$_uid/$farmId/plant-scans/$filename';
+    final folder = farmId == null ? _uid : '$_uid/$farmId';
+    final path = '$folder/plant-scans/$filename';
 
     await _sb.storage.from(_bucket).upload(
           path,
@@ -36,31 +53,48 @@ class PlantScanService {
   }
 
   Future<PlantScan> analyze(
-      {required String farmId, required String storagePath}) async {
-    final res = await _sb.functions.invoke('analyze-plant-photo', body: {
-      'farm_id': farmId,
+      {String? farmId, required String storagePath}) async {
+    final data = await _invoke('analyze-plant-photo', {
+      if (farmId != null) 'farm_id': farmId,
       'storage_path': storagePath,
     });
-
-    if (res.status != 200) {
-      final data = res.data;
-      final reason = data is Map
-          ? (data['error']?.toString() ?? 'unknown_error')
-          : 'unknown_error';
-      throw PlantScanFailed(reason);
-    }
-    return PlantScan.fromMap(res.data as Map<String, dynamic>);
+    return PlantScan.fromMap(data as Map<String, dynamic>);
   }
 
-  Future<List<PlantScan>> listForFarm(String farmId) async {
+  Future<String> askFollowUp(
+      {required String scanId, required String question}) async {
+    final data = await _invoke('plant-scan-followup', {
+      'scan_id': scanId,
+      'question': question,
+    });
+    return (data as Map<String, dynamic>)['answer']?.toString() ?? '';
+  }
+
+  /// A temporary link to a saved scan photo (valid for an hour).
+  Future<String> signedPhotoUrl(String storagePath, {int seconds = 3600}) {
+    return _sb.storage.from(_bucket).createSignedUrl(storagePath, seconds);
+  }
+
+  Future<List<PlantScan>> listMine() async {
     final rows = await _sb
         .from('plant_health_scans')
         .select()
-        .eq('farm_id', farmId)
         .order('created_at', ascending: false);
     return (rows as List)
         .map((r) => PlantScan.fromMap(r as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<dynamic> _invoke(String function, Map<String, dynamic> body) async {
+    try {
+      final res = await _sb.functions.invoke(function, body: body);
+      return res.data;
+    } on FunctionException catch (e) {
+      final details = e.details;
+      throw PlantScanFailed(details is Map
+          ? (details['error']?.toString() ?? 'unknown_error')
+          : 'unknown_error');
+    }
   }
 
   String _extensionFor(String path) {
